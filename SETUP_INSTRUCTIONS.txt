@@ -1,0 +1,226 @@
+==============================================================================
+APP BILLING SYSTEM - SETUP & IMPORT INSTRUCTIONS
+==============================================================================
+
+This document explains how to import the new VBA modules and forms into
+APPBilling.xlsm and configure the system for multi-user network operation.
+
+==============================================================================
+PART 1: BACKUP
+==============================================================================
+
+1. Make a backup copy of APPBilling.xlsm before making any changes.
+   Copy it to: APPBilling_BACKUP_YYYYMMDD.xlsm
+
+==============================================================================
+PART 2: IMPORT VBA MODULES
+==============================================================================
+
+1. Open APPBilling.xlsm in Excel
+
+2. Press Alt+F11 to open the VBA Editor
+
+3. IMPORTANT: First, remove the OLD Module1:
+   - In the Project Explorer (left panel), expand "Modules"
+   - Right-click on "Module1" > "Remove Module1..."
+   - When asked "Do you want to export?", click "No"
+
+4. Import the new modules:
+   - Go to File > Import File... (or Ctrl+M)
+   - Navigate to: C:\Users\John Ramsden\documents\coding\APP_Billing\src\
+   - Import these files ONE AT A TIME in this order:
+
+     a. modConfig.bas      (Configuration & Settings)
+     b. modNetworkIO.bas   (Network File I/O)
+     c. modSecurity.bas    (Superuser Access Control)
+     d. modPDFReport.bas   (PDF Report Generation)
+     e. modConsolidate.bas (Daily Data Consolidation)
+     f. modHelpers.bas     (Utility Helpers)
+     g. Module1.bas        (Main Logic - UPDATED)
+
+5. Update existing UserForms:
+
+   FOR frmSaveData:
+   - In Project Explorer, double-click "frmSaveData" to open it
+   - Click "View Code" (or press F7)
+   - Select ALL code (Ctrl+A) and DELETE it
+   - Open src\frmSaveData.frm in a text editor (Notepad)
+   - Copy ONLY the VBA code portion (everything AFTER the "Option Explicit" line,
+     starting from the Sub/Function declarations)
+   - Paste into the frmSaveData code window
+   - ADD THESE CONTROLS to the form designer (if not already present):
+     * cmdSearch  - CommandButton, Caption: "Search"
+     * cmdDelete  - CommandButton, Caption: "Delete Last"
+     * cmdEdit    - CommandButton, Caption: "Edit Last"
+
+   FOR frmPrntData:
+   - Double-click "frmPrntData" in Project Explorer
+   - View Code, select all, delete existing code
+   - ADD THESE CONTROLS in the form designer:
+     * lblUser        - Label (shows logged-in user)
+     * lblDate        - Label, Caption: "Date of Service:"
+     * txtReportDate  - TextBox
+     * lblAnesth      - Label, Caption: "Anesthesiologist:"
+     * lstAnesth      - ListBox
+     * cmdPreview     - CommandButton, Caption: "Preview"
+     * cmdGeneratePDF - CommandButton, Caption: "Generate PDF"
+     * cmdExit        - CommandButton, Caption: "Exit"
+     * lblStatus      - Label (for status messages)
+   - Then paste the code from src\frmPrntData.frm (VBA portion only)
+
+6. Create NEW UserForms:
+
+   FOR frmSuperUser:
+   - In VBA Editor: Insert > UserForm
+   - Change Name property to "frmSuperUser"
+   - Change Caption to "APP Billing - Superuser Access"
+   - Add these controls:
+     * lblTitle       - Label, Caption: "Superuser Access Panel", Font: Bold 14pt
+     * lblUser        - Label (shows user & access level)
+     * lblStatus      - Label (status messages)
+
+     * fraDataBrowse  - Frame, Caption: "Browse Data Files"
+       - txtBrowseDate  - TextBox (date input)
+       - cmdListFiles   - CommandButton, Caption: "List Files"
+       - lstFiles       - ListBox (file listing)
+       - cmdOpenFile    - CommandButton, Caption: "Open Selected"
+
+     * fraConsolidate  - Frame, Caption: "Data Consolidation"
+       - txtConsDate    - TextBox (single date)
+       - cmdConsolidate - CommandButton, Caption: "Consolidate Day"
+       - txtStartDate   - TextBox (range start)
+       - txtEndDate     - TextBox (range end)
+       - cmdConsRange   - CommandButton, Caption: "Consolidate Range"
+
+     * fraAdmin        - Frame, Caption: "Administration"
+       - cmdManageUsers - CommandButton, Caption: "Manage SuperUsers"
+       - cmdSettings    - CommandButton, Caption: "System Settings"
+       - cmdChangePwd   - CommandButton, Caption: "Change Password"
+       - cmdInitSetup   - CommandButton, Caption: "Initial Setup"
+
+     * cmdLogout      - CommandButton, Caption: "Logout"
+     * cmdExit        - CommandButton, Caption: "Exit"
+   - View Code, paste code from src\frmSuperUser.frm (VBA portion only)
+
+   FOR frmDailyExport:
+   - Insert > UserForm
+   - Change Name to "frmDailyExport"
+   - Change Caption to "APP Billing - Daily Data Export"
+   - Add these controls:
+     * lblTitle      - Label, Caption: "Export All Users' Daily Data"
+     * lblDate       - Label, Caption: "Date:"
+     * txtExportDate - TextBox
+     * cmdExport     - CommandButton, Caption: "Export"
+     * cmdExit       - CommandButton, Caption: "Exit"
+     * lblStatus     - Label (status messages)
+     * chkOpenFile   - CheckBox, Caption: "Open file after export"
+   - View Code, paste code from src\frmDailyExport.frm (VBA portion only)
+
+==============================================================================
+PART 3: SHEET CHANGES
+==============================================================================
+
+1. DailyDatabase Sheet:
+   - Add header in cell AB1: "Sync Status"
+   - This tracks whether each record has been synced to the network
+
+2. Home Sheet - Add new buttons:
+   - Add a button/shape: "Superuser Access"
+     * Right-click > Assign Macro > Select "Show_Form3"
+
+   - Add a button/shape: "Export Daily Data"
+     * Right-click > Assign Macro > Select "Show_DailyExport"
+
+   - Add a button/shape: "Sync to Network"
+     * Right-click > Assign Macro > Select "SyncNow"
+
+3. The Settings sheet will be created automatically when you run Initial Setup.
+
+==============================================================================
+PART 4: INITIAL SETUP (RUN ONCE)
+==============================================================================
+
+1. After importing all modules and creating forms:
+   - Press Alt+F8 (or go to Developer > Macros)
+   - Select "InitialSetup" and click "Run"
+
+   This will:
+   - Create the hidden Settings sheet
+   - Prompt you for the network share path (e.g., \\server\APP_Billing\)
+   - Create the folder structure on the network share
+   - Create SuperUsers.xlsx with your account as the first admin
+   - Add the Sync Status header to DailyDatabase
+
+2. Set the superuser password:
+   - Click "Superuser Access" on the Home sheet
+   - You'll be prompted to create a password (first time only)
+
+==============================================================================
+PART 5: NETWORK SHARE SETUP
+==============================================================================
+
+On your file server, create a shared folder with these permissions:
+
+1. Create folder: \\server\APP_Billing\
+2. Share permissions: All APP anesthesiologists need Read/Write access
+3. The system will auto-create subfolders:
+   - Data\          (per-user daily data files)
+   - DailyExports\  (consolidated daily reports)
+   - PDFReports\    (individual PDF reports)
+   - Config\        (SuperUsers.xlsx, system config)
+
+4. Security consideration: The Config\ folder ideally should have
+   restricted write access (only admins), but read access for all users.
+
+==============================================================================
+PART 6: DEPLOYING TO USERS
+==============================================================================
+
+1. Complete the setup on one workstation first (Parts 1-5)
+2. Test all features:
+   - Save a record (check local + network)
+   - Generate a PDF report
+   - Run daily consolidation
+   - Test superuser access
+3. Once verified, copy APPBilling.xlsm to each user's workstation
+4. Each user should have network access to the shared folder
+5. No per-user configuration needed - the network path is saved in the workbook
+
+==============================================================================
+PART 7: USER WORKFLOW
+==============================================================================
+
+Regular users:
+  1. Open APPBilling.xlsm from their desktop
+  2. Click "Launch Data Entry Form" to enter procedure data
+  3. Click "Print Daily Data Sheet" to generate PDF reports
+  4. Click "Export Daily Data" to consolidate all users' daily data
+  5. Click "Sync to Network" if any records show "Pending" status
+
+Superusers:
+  1. Click "Superuser Access" on the Home sheet
+  2. Authenticate (Windows username + password)
+  3. Browse data files, run consolidations, manage users
+
+==============================================================================
+TROUBLESHOOTING
+==============================================================================
+
+"Network share is not available":
+  - Check network connection
+  - Verify the share path in Settings (run ShowConfigDialog macro)
+  - Ensure you have read/write permissions to the share
+
+"Record saved locally but not synced":
+  - This happens when the network is temporarily unavailable
+  - Click "Sync to Network" to retry
+  - Records are never lost - they're always saved locally first
+
+"Authentication failed":
+  - Ensure your Windows username is in SuperUsers.xlsx
+  - Contact an admin to add your account
+
+"Compile error" after importing:
+  - Ensure all modules are imported (modConfig, modNetworkIO, etc.)
+  - Check that form control names match exactly (case-sensitive)
+  - Verify no duplicate module names exist
