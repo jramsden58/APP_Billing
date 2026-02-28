@@ -1,0 +1,13 @@
+# Environment files (contain sensitive/local config)
+.env
+
+# Excel temporary files
+~$*.xls*
+*.tmp
+
+# Windows system files
+Thumbs.db
+desktop.ini
+
+# Claude Code internal files
+.claude/
