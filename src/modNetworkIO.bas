@@ -10,7 +10,7 @@ Attribute VB_Name = "modNetworkIO"
 Option Explicit
 
 ' Column headers for the daily data files (must match DailyDatabase)
-Private Const NUM_COLUMNS As Long = 28 ' A through AB (added SyncStatus)
+Public Const NUM_COLUMNS As Long = 28 ' A through AB (added SyncStatus)
 
 ' DailyDatabase column indices
 Public Const COL_SERIAL As Long = 1
@@ -68,31 +68,25 @@ End Function
 Public Function SaveToNetwork(ByVal wsSource As Worksheet, ByVal lRow As Long) As Boolean
     On Error GoTo ErrHandler
 
-    ' Get the anesthesiologist name and date for file naming
-    Dim sAnesth As String
-    sAnesth = CStr(wsSource.Cells(lRow, COL_ANESTH).Value)
+    ' Use Windows username for file naming (per-user files, not per-anesthesiologist)
+    Dim sFileUser As String
+    sFileUser = GetCurrentUser()
 
     Dim dtService As Date
     Dim sDateVal As String
     sDateVal = CStr(wsSource.Cells(lRow, COL_DATE).Value)
 
-    ' Try to parse the date
-    If IsDate(sDateVal) Then
-        dtService = CDate(sDateVal)
-    Else
-        ' Try DD/MM/YYYY format
-        Dim parts() As String
-        parts = Split(sDateVal, "/")
-        If UBound(parts) = 2 Then
-            dtService = DateSerial(CInt(parts(2)), CInt(parts(1)), CInt(parts(0)))
-        Else
-            dtService = Date ' Fallback to today
-        End If
+    ' Parse the date using locale-safe DD/MM/YYYY parser
+    If Not TryParseDateDMY(sDateVal, dtService) Then
+        ' Log warning but do not silently fall back to today
+        wsSource.Cells(lRow, COL_SYNCSTATUS).Value = "Error: Invalid date format"
+        SaveToNetwork = False
+        Exit Function
     End If
 
     ' Build file path
     Dim sFilePath As String
-    sFilePath = GetUserDailyFilePath(sAnesth, dtService)
+    sFilePath = GetUserDailyFilePath(sFileUser, dtService)
 
     If Len(sFilePath) = 0 Then
         SaveToNetwork = False
@@ -277,17 +271,24 @@ Public Function ReadAllUsersDailyData(ByVal dtDate As Date) As Collection
     End If
 
     ' Find all files matching *_YYYYMMDD.xlsx
+    ' Collect filenames first to avoid Dir() state corruption when opening workbooks
     Dim sDateSuffix As String
     sDateSuffix = "_" & Format(dtDate, "YYYYMMDD") & ".xlsx"
 
+    Dim colFiles As New Collection
     Dim sFile As String
     sFile = Dir(sMonthFolder & "*" & sDateSuffix)
+    Do While Len(sFile) > 0
+        colFiles.Add sMonthFolder & sFile
+        sFile = Dir()
+    Loop
 
     Application.ScreenUpdating = False
 
-    Do While Len(sFile) > 0
+    Dim vFilePath As Variant
+    For Each vFilePath In colFiles
         Dim wb As Workbook
-        Set wb = Workbooks.Open(sMonthFolder & sFile, ReadOnly:=True, UpdateLinks:=0)
+        Set wb = Workbooks.Open(CStr(vFilePath), ReadOnly:=True, UpdateLinks:=0)
 
         Dim ws As Worksheet
         Set ws = wb.Sheets(1)
@@ -302,8 +303,7 @@ Public Function ReadAllUsersDailyData(ByVal dtDate As Date) As Collection
         End If
 
         wb.Close SaveChanges:=False
-        sFile = Dir()
-    Loop
+    Next vFilePath
 
     Application.ScreenUpdating = True
     Set ReadAllUsersDailyData = col
@@ -369,7 +369,8 @@ Public Function SyncPendingRecords() As Long
         sStatus = CStr(ws.Cells(i, COL_SYNCSTATUS).Value)
 
         ' Try to sync records that are Pending or have Error status
-        If sStatus = "Pending" Or Left(sStatus, 5) = "Error" Or Len(sStatus) = 0 Then
+        ' Skip empty status (record may be mid-submit) and already-synced records
+        If sStatus = "Pending" Or Left(sStatus, 5) = "Error" Then
             If SaveToNetwork(ws, i) Then
                 lSynced = lSynced + 1
             End If

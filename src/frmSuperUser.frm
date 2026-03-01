@@ -63,6 +63,14 @@ Private m_colFiles As Collection
 ' Form Initialize - Authenticate and set up UI
 '------------------------------------------------------------------------------
 Private Sub UserForm_Initialize()
+    ' Disable all controls before authentication to prevent bypass
+    Dim ctrl As Control
+    For Each ctrl In Me.Controls
+        On Error Resume Next
+        ctrl.Enabled = False
+        On Error GoTo 0
+    Next ctrl
+
     ' Attempt authentication
     If Not AuthenticateSuperUser() Then
         MsgBox "Authentication failed. Superuser access denied.", _
@@ -71,6 +79,13 @@ Private Sub UserForm_Initialize()
         Application.OnTime Now, "UnloadSuperUser"
         Exit Sub
     End If
+
+    ' Re-enable all controls after successful auth
+    For Each ctrl In Me.Controls
+        On Error Resume Next
+        ctrl.Enabled = True
+        On Error GoTo 0
+    Next ctrl
 
     ' Set up user display
     lblUser.Caption = "User: " & Application.UserName & " | Access: " & GetAccessLevel()
@@ -281,19 +296,8 @@ Private Sub cmdExit_Click()
 End Sub
 
 '------------------------------------------------------------------------------
-' ParseDate - Helper to parse DD/MM/YYYY date strings
+' ParseDate - Helper to parse DD/MM/YYYY date strings (locale-safe)
 '------------------------------------------------------------------------------
 Private Function ParseDate(ByVal sDate As String) As Date
-    If IsDate(sDate) Then
-        ParseDate = CDate(sDate)
-        Exit Function
-    End If
-
-    Dim parts() As String
-    parts = Split(sDate, "/")
-    If UBound(parts) = 2 Then
-        ParseDate = DateSerial(CInt(parts(2)), CInt(parts(1)), CInt(parts(0)))
-    Else
-        Err.Raise 13, , "Invalid date format. Use DD/MM/YYYY."
-    End If
+    ParseDate = ParseDateDMY(sDate)
 End Function

@@ -75,6 +75,7 @@ End Sub
 ' Preview Button - Shows the populated ORReportingForm
 '------------------------------------------------------------------------------
 Private Sub cmdPreview_Click()
+    On Error GoTo ErrHandler
     If Not ValidateInputs() Then Exit Sub
 
     Dim sAnesth As String
@@ -90,12 +91,18 @@ Private Sub cmdPreview_Click()
     sResult = GenerateDailyPDF(sAnesth, dtDate, bPreview:=True)
 
     lblStatus.Caption = "Preview ready. Check the ORReportingForm sheet."
+    Exit Sub
+
+ErrHandler:
+    lblStatus.Caption = "Preview failed."
+    MsgBox "Error generating preview: " & Err.Description, vbCritical, "Preview Error"
 End Sub
 
 '------------------------------------------------------------------------------
 ' Generate PDF Button - Creates and saves the PDF report
 '------------------------------------------------------------------------------
 Private Sub cmdGeneratePDF_Click()
+    On Error GoTo ErrHandler
     If Not ValidateInputs() Then Exit Sub
 
     Dim sAnesth As String
@@ -123,6 +130,11 @@ Private Sub cmdGeneratePDF_Click()
     Else
         lblStatus.Caption = "PDF generation failed or no data found."
     End If
+    Exit Sub
+
+ErrHandler:
+    lblStatus.Caption = "PDF generation failed."
+    MsgBox "Error generating PDF: " & Err.Description, vbCritical, "PDF Error"
 End Sub
 
 '------------------------------------------------------------------------------
@@ -174,19 +186,8 @@ Private Function ValidateInputs() As Boolean
 End Function
 
 '------------------------------------------------------------------------------
-' ParseDateInput - Parses a DD/MM/YYYY date string
+' ParseDateInput - Parses a DD/MM/YYYY date string (locale-safe)
 '------------------------------------------------------------------------------
 Private Function ParseDateInput(ByVal sDate As String) As Date
-    If IsDate(sDate) Then
-        ParseDateInput = CDate(sDate)
-        Exit Function
-    End If
-
-    Dim parts() As String
-    parts = Split(sDate, "/")
-    If UBound(parts) = 2 Then
-        ParseDateInput = DateSerial(CInt(parts(2)), CInt(parts(1)), CInt(parts(0)))
-    Else
-        Err.Raise 13, , "Invalid date format"
-    End If
+    ParseDateInput = ParseDateDMY(sDate)
 End Function

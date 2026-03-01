@@ -212,7 +212,8 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
         ws.Range(FORM_SITE_CELL).Value = vData(1, COL_SITE)
         ws.Range(FORM_SHIFT_CELL).Value = vData(1, COL_SHIFT)
         ws.Range(FORM_SHIFTTYPE_CELL).Value = vData(1, COL_SHIFTTYPE)
-        ws.Range(FORM_ONCALL_CELL).Value = IIf(vData(1, COL_ONCALL) = True, "Yes", "No")
+        ws.Range(FORM_ONCALL_CELL).Value = IIf(vData(1, COL_ONCALL) = True Or _
+            LCase(CStr(vData(1, COL_ONCALL) & "")) = "yes", "Yes", "No")
     End If
 
     ' Populate procedure blocks (up to 6)
@@ -288,6 +289,9 @@ Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String
     ws.Range(FORM_DATE_CELL).Value = Format(dtDate, "DD/MM/YYYY") & " (cont.)"
     ws.Range(FORM_SITE_CELL).Value = vData(1, COL_SITE)
     ws.Range(FORM_SHIFT_CELL).Value = vData(1, COL_SHIFT)
+    ws.Range(FORM_SHIFTTYPE_CELL).Value = vData(1, COL_SHIFTTYPE)
+    ws.Range(FORM_ONCALL_CELL).Value = IIf(vData(1, COL_ONCALL) = True Or _
+        LCase(CStr(vData(1, COL_ONCALL) & "")) = "yes", "Yes", "No")
 
     ' Populate procedure blocks starting from lStartIdx
     Dim procRows() As String
@@ -381,7 +385,7 @@ Private Sub ExportToPDF(ByVal sTargetPath As String)
     Exit Sub
 
 ErrHandler:
-    MsgBox "Error exporting PDF: " & Err.Description, vbCritical, "PDF Export Error"
+    Err.Raise Err.Number, "ExportToPDF", "Error exporting PDF: " & Err.Description
 End Sub
 
 '------------------------------------------------------------------------------
@@ -433,29 +437,8 @@ ErrHandler:
 End Function
 
 '------------------------------------------------------------------------------
-' TryParseDate - Attempts to parse a date string (DD/MM/YYYY format)
+' TryParseDate - Attempts to parse a date string (DD/MM/YYYY format, locale-safe)
 '------------------------------------------------------------------------------
 Private Function TryParseDate(ByVal sDate As String, ByRef dtResult As Date) As Boolean
-    On Error GoTo ErrHandler
-
-    If IsDate(sDate) Then
-        dtResult = CDate(sDate)
-        TryParseDate = True
-        Exit Function
-    End If
-
-    ' Try DD/MM/YYYY format
-    Dim parts() As String
-    parts = Split(sDate, "/")
-    If UBound(parts) = 2 Then
-        dtResult = DateSerial(CInt(parts(2)), CInt(parts(1)), CInt(parts(0)))
-        TryParseDate = True
-        Exit Function
-    End If
-
-    TryParseDate = False
-    Exit Function
-
-ErrHandler:
-    TryParseDate = False
+    TryParseDate = TryParseDateDMY(sDate, dtResult)
 End Function

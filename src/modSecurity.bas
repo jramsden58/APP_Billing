@@ -92,8 +92,12 @@ Public Function AuthenticateSuperUser() As Boolean
     End If
 
     ' Step 2: Prompt for password
+    ' Try network config first (centralized), fall back to local Settings
     Dim sStoredHash As String
-    sStoredHash = GetSuperUserPassword()
+    sStoredHash = GetNetworkPassword()
+    If Len(sStoredHash) = 0 Then
+        sStoredHash = GetSuperUserPassword()
+    End If
 
     ' If no password has been set yet, prompt to create one
     If Len(sStoredHash) = 0 Then
@@ -115,6 +119,7 @@ Public Function AuthenticateSuperUser() As Boolean
         End If
 
         SetSuperUserPassword sNewPwd
+        SetNetworkPassword SimpleHash(sNewPwd)
         m_bAuthenticated = True
         AuthenticateSuperUser = True
         MsgBox "Superuser password has been set successfully.", vbInformation, "Password Set"
@@ -282,5 +287,65 @@ Public Sub ChangeSuperUserPassword()
     End If
 
     SetSuperUserPassword sNewPwd
+    SetNetworkPassword SimpleHash(sNewPwd)
     MsgBox "Superuser password changed successfully.", vbInformation, "Password Changed"
+End Sub
+
+'------------------------------------------------------------------------------
+' GetNetworkPassword - Reads password hash from network SuperUsers.xlsx
+' Uses cell D1 in the SuperUsers sheet to store the centralized password hash
+'------------------------------------------------------------------------------
+Private Function GetNetworkPassword() As String
+    On Error GoTo ErrHandler
+
+    Dim sPath As String
+    sPath = GetNetworkPath() & FOLDER_CONFIG & "\SuperUsers.xlsx"
+
+    If Len(Dir(sPath)) = 0 Then
+        GetNetworkPassword = ""
+        Exit Function
+    End If
+
+    Application.ScreenUpdating = False
+    Dim wb As Workbook
+    Set wb = Workbooks.Open(sPath, ReadOnly:=True, UpdateLinks:=0)
+    GetNetworkPassword = CStr(wb.Sheets(1).Cells(1, 4).Value) ' D1 = password hash
+    wb.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    Exit Function
+
+ErrHandler:
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    GetNetworkPassword = ""
+End Function
+
+'------------------------------------------------------------------------------
+' SetNetworkPassword - Writes password hash to network SuperUsers.xlsx cell D1
+'------------------------------------------------------------------------------
+Private Sub SetNetworkPassword(ByVal sHash As String)
+    On Error GoTo ErrHandler
+
+    Dim sPath As String
+    sPath = GetNetworkPath() & FOLDER_CONFIG & "\SuperUsers.xlsx"
+
+    If Len(Dir(sPath)) = 0 Then Exit Sub
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Dim wb As Workbook
+    Set wb = Workbooks.Open(sPath, ReadOnly:=False, UpdateLinks:=0)
+    wb.Sheets(1).Cells(1, 4).Value = sHash  ' D1 = password hash
+    wb.Save
+    wb.Close SaveChanges:=False
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
 End Sub

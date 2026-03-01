@@ -18,15 +18,18 @@ Attribute VB_Exposed = False
 ' APP Billing System
 '
 ' Handles user input for patient procedures and billing data.
-' Fixed: WCB date of injury field typo
-' Added: Search, edit, delete functionality (previously commented out)
+' Features: Search, edit, delete functionality
 '==============================================================================
 Option Explicit
+
+' Module-level variable to track the row being edited (0 = not editing)
+Private m_lEditRow As Long
 
 '------------------------------------------------------------------------------
 ' Form Initialize - Sets up the form with default values
 '------------------------------------------------------------------------------
 Private Sub UserForm_Initialize()
+    m_lEditRow = 0
     Call Reset
 End Sub
 
@@ -34,22 +37,50 @@ End Sub
 ' Save Button - Saves data to local database and network share
 '------------------------------------------------------------------------------
 Private Sub cmdSave_Click()
+    On Error GoTo ErrHandler
+
     ' Validate required fields
     If Not ValidateForm() Then Exit Sub
 
     If MsgBox("Save this record?", vbYesNo + vbQuestion, "Confirm Save") = vbYes Then
+        ' If editing, delete the old record now (just before saving the replacement)
+        If m_lEditRow > 0 Then
+            Dim wsEdit As Worksheet
+            Set wsEdit = ThisWorkbook.Sheets("DailyDatabase")
+            ' Verify the row still exists and is the same record
+            If m_lEditRow <= wsEdit.Cells(wsEdit.Rows.Count, COL_ANESTH).End(xlUp).Row Then
+                wsEdit.Rows(m_lEditRow).Delete
+            End If
+            m_lEditRow = 0
+        End If
+
         Call Submit
         Call Reset
         MsgBox "Record saved successfully.", vbInformation, "Saved"
     End If
+    Exit Sub
+
+ErrHandler:
+    m_lEditRow = 0
+    MsgBox "Error saving record: " & Err.Description, vbCritical, "Save Error"
 End Sub
 
 '------------------------------------------------------------------------------
 ' Exit Button - Closes the form
 '------------------------------------------------------------------------------
 Private Sub cmdExit_Click()
-    If MsgBox("Are you sure you want to exit? Any unsaved data will be lost.", _
-              vbYesNo + vbQuestion, "Confirm Exit") = vbYes Then
+    ' Warn about unsaved edit
+    Dim sWarning As String
+    If m_lEditRow > 0 Then
+        sWarning = "You are currently editing a record. " & _
+                   "If you exit now, the original record will be preserved." & vbCrLf & vbCrLf & _
+                   "Are you sure you want to exit?"
+    Else
+        sWarning = "Are you sure you want to exit? Any unsaved data will be lost."
+    End If
+
+    If MsgBox(sWarning, vbYesNo + vbQuestion, "Confirm Exit") = vbYes Then
+        m_lEditRow = 0
         Call Reset
         Unload Me
     End If
@@ -71,8 +102,9 @@ Private Sub cmdSearch_Click()
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("DailyDatabase")
 
+    ' Ensure SearchData sheet exists
     Dim wsSearch As Worksheet
-    Set wsSearch = ThisWorkbook.Sheets("SearchData")
+    Set wsSearch = EnsureSheetExists("SearchData")
     wsSearch.Cells.ClearContents
 
     ' Copy headers
@@ -111,7 +143,7 @@ ErrHandler:
 End Sub
 
 '------------------------------------------------------------------------------
-' Delete Button - Deletes the currently selected/last entered record
+' Delete Button - Deletes the last entered record
 '------------------------------------------------------------------------------
 Private Sub cmdDelete_Click()
     On Error GoTo ErrHandler
@@ -133,11 +165,12 @@ Private Sub cmdDelete_Click()
             "Anesthesiologist: " & ws.Cells(lastRow, COL_ANESTH).Value & vbCrLf & _
             "Date: " & ws.Cells(lastRow, COL_DATE).Value & vbCrLf & _
             "Procedure: " & ws.Cells(lastRow, COL_PROCCODE).Value & vbCrLf & _
-            "Submitted: " & ws.Cells(lastRow, COL_SUBMON).Value
+            "Submitted: " & ws.Cells(lastRow, COL_SUBMON).Value & vbCrLf & vbCrLf & _
+            "Note: This only deletes the local copy. Network copy is not affected."
 
     If MsgBox(sInfo, vbYesNo + vbExclamation, "Confirm Delete") = vbYes Then
         ws.Rows(lastRow).Delete
-        MsgBox "Record deleted.", vbInformation, "Deleted"
+        MsgBox "Record deleted locally.", vbInformation, "Deleted"
     End If
 
     Exit Sub
@@ -147,6 +180,7 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' Edit Button - Loads the last record into the form for editing
+' The original record is NOT deleted until the user clicks Save.
 '------------------------------------------------------------------------------
 Private Sub cmdEdit_Click()
     On Error GoTo ErrHandler
@@ -185,6 +219,18 @@ Private Sub cmdEdit_Click()
         ' Date
         .txtDteOfSer.Value = CStr(ws.Cells(lastRow, COL_DATE).Value)
 
+        ' Shift Name - find in list
+        Dim sShift As String
+        sShift = CStr(ws.Cells(lastRow, COL_SHIFT).Value)
+        If Len(sShift) > 0 Then
+            For k = 0 To .lstShftName.ListCount - 1
+                If .lstShftName.List(k) = sShift Then
+                    .lstShftName.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
         ' Shift type
         If CStr(ws.Cells(lastRow, COL_SHIFTTYPE).Value) = "OR" Then
             .optOR.Value = True
@@ -192,14 +238,116 @@ Private Sub cmdEdit_Click()
             .optOutOfOR.Value = True
         End If
 
-        ' On Call
-        .chxOnCall.Value = ws.Cells(lastRow, COL_ONCALL).Value
+        ' On Call (handle both Boolean and "Yes"/"No" string)
+        Dim vOnCall As Variant
+        vOnCall = ws.Cells(lastRow, COL_ONCALL).Value
+        .chxOnCall.Value = (vOnCall = True Or LCase(CStr(vOnCall & "")) = "yes")
 
         ' Procedure fields
         .txtSurgProcCode.Value = CStr(ws.Cells(lastRow, COL_PROCCODE).Value)
         .txtProcStrtTime.Value = CStr(ws.Cells(lastRow, COL_STARTTIME).Value)
         .txtProcFinTime.Value = CStr(ws.Cells(lastRow, COL_FINTIME).Value)
         .txtMaxIC.Value = CStr(ws.Cells(lastRow, COL_MAXIC).Value)
+
+        ' Consults - find in list
+        Dim sVal As String
+        sVal = CStr(ws.Cells(lastRow, COL_CONSULT).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstEval.ListCount - 1
+                If .lstEval.List(k) = sVal Then
+                    .lstEval.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Fee Modifier 1
+        sVal = CStr(ws.Cells(lastRow, COL_MOD1).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstMod1.ListCount - 1
+                If .lstMod1.List(k) = sVal Then
+                    .lstMod1.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Fee Modifier 2
+        sVal = CStr(ws.Cells(lastRow, COL_MOD2).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstMod2.ListCount - 1
+                If .lstMod2.List(k) = sVal Then
+                    .lstMod2.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Fee Modifier 3
+        sVal = CStr(ws.Cells(lastRow, COL_MOD3).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstMod3.ListCount - 1
+                If .lstMod3.List(k) = sVal Then
+                    .lstMod3.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Resuscitation
+        sVal = CStr(ws.Cells(lastRow, COL_RESUS).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstResus.ListCount - 1
+                If .lstResus.List(k) = sVal Then
+                    .lstResus.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Obstetrics
+        sVal = CStr(ws.Cells(lastRow, COL_OBS).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstObs.ListCount - 1
+                If .lstObs.List(k) = sVal Then
+                    .lstObs.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Acute Pain
+        sVal = CStr(ws.Cells(lastRow, COL_ACUTEPAIN).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstAcPain.ListCount - 1
+                If .lstAcPain.List(k) = sVal Then
+                    .lstAcPain.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Chronic Pain
+        sVal = CStr(ws.Cells(lastRow, COL_CHRONPAIN).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstChPain.ListCount - 1
+                If .lstChPain.List(k) = sVal Then
+                    .lstChPain.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
+
+        ' Miscellaneous
+        sVal = CStr(ws.Cells(lastRow, COL_MISC).Value)
+        If Len(sVal) > 0 Then
+            For k = 0 To .lstMisc.ListCount - 1
+                If .lstMisc.List(k) = sVal Then
+                    .lstMisc.ListIndex = k
+                    Exit For
+                End If
+            Next k
+        End If
 
         ' WCB fields
         .txtWCBNum.Value = CStr(ws.Cells(lastRow, COL_WCBNUM).Value)
@@ -214,14 +362,16 @@ Private Sub cmdEdit_Click()
         End If
     End With
 
-    ' Delete the old record so the edited version replaces it
-    ws.Rows(lastRow).Delete
+    ' Store the row being edited — do NOT delete until Save is clicked
+    m_lEditRow = lastRow
 
-    MsgBox "Record loaded for editing. Make your changes and click Save.", _
+    MsgBox "Record loaded for editing. Make your changes and click Save." & vbCrLf & _
+           "The original record will be replaced when you save.", _
            vbInformation, "Edit Mode"
 
     Exit Sub
 ErrHandler:
+    m_lEditRow = 0
     MsgBox "Edit error: " & Err.Description, vbCritical, "Error"
 End Sub
 
@@ -275,9 +425,15 @@ Private Function ValidateForm() As Boolean
         bValid = False
     End If
 
-    ' Check date
-    If txtDteOfSer.Value = "DD/MM/YYYY" Or Len(txtDteOfSer.Value) = 0 Then
+    ' Check date is valid DD/MM/YYYY
+    Dim sDate As String
+    sDate = txtDteOfSer.Value
+    If sDate = "DD/MM/YYYY" Or Len(sDate) = 0 Then
         txtDteOfSer.BackColor = &HC0C0FF ' Light red
+        bValid = False
+    ElseIf Not IsValidDateDMY(sDate) Then
+        txtDteOfSer.BackColor = &HC0C0FF
+        MsgBox "Invalid date format. Please use DD/MM/YYYY.", vbExclamation, "Validation"
         bValid = False
     End If
 
@@ -287,16 +443,39 @@ Private Function ValidateForm() As Boolean
         bValid = False
     End If
 
-    ' Check start time
-    If txtProcStrtTime.Value = "HH:MM" Or Len(txtProcStrtTime.Value) = 0 Then
+    ' Check start time is valid HH:MM
+    Dim sStart As String
+    sStart = txtProcStrtTime.Value
+    If sStart = "HH:MM" Or Len(sStart) = 0 Then
         txtProcStrtTime.BackColor = &HC0C0FF
+        bValid = False
+    ElseIf Not IsValidTime24(sStart) Then
+        txtProcStrtTime.BackColor = &HC0C0FF
+        MsgBox "Invalid start time. Please use HH:MM (24-hour format).", vbExclamation, "Validation"
         bValid = False
     End If
 
-    ' Check finish time
-    If txtProcFinTime.Value = "HH:MM" Or Len(txtProcFinTime.Value) = 0 Then
+    ' Check finish time is valid HH:MM
+    Dim sFinish As String
+    sFinish = txtProcFinTime.Value
+    If sFinish = "HH:MM" Or Len(sFinish) = 0 Then
         txtProcFinTime.BackColor = &HC0C0FF
         bValid = False
+    ElseIf Not IsValidTime24(sFinish) Then
+        txtProcFinTime.BackColor = &HC0C0FF
+        MsgBox "Invalid finish time. Please use HH:MM (24-hour format).", vbExclamation, "Validation"
+        bValid = False
+    End If
+
+    ' Check WCB date if entered
+    Dim sWCBDate As String
+    sWCBDate = txtWCBDteofInj.Value
+    If sWCBDate <> "DD/MM/YYYY" And Len(sWCBDate) > 0 Then
+        If Not IsValidDateDMY(sWCBDate) Then
+            txtWCBDteofInj.BackColor = &HC0C0FF
+            MsgBox "Invalid WCB date of injury. Please use DD/MM/YYYY.", vbExclamation, "Validation"
+            bValid = False
+        End If
     End If
 
     If Not bValid Then

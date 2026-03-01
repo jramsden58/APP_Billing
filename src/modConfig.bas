@@ -92,12 +92,16 @@ End Sub
 '------------------------------------------------------------------------------
 Public Function SimpleHash(ByVal sText As String) As String
     Dim i As Long
-    Dim lHash As Long
-    lHash = 5381
+    Dim dHash As Double
+    dHash = 5381
     For i = 1 To Len(sText)
-        lHash = ((lHash * 33) Xor Asc(Mid(sText, i, 1))) And &H7FFFFFFF
+        ' Use Double to avoid Long overflow on multiplication
+        dHash = dHash * 33
+        ' Mask to 31 bits before Xor to keep within Long range
+        dHash = (CLng(dHash - Fix(dHash / 2147483648#) * 2147483648#)) Xor Asc(Mid(sText, i, 1))
+        If dHash < 0 Then dHash = dHash + 2147483648#
     Next i
-    SimpleHash = CStr(lHash)
+    SimpleHash = CStr(CLng(dHash And &H7FFFFFFF))
 End Function
 
 '------------------------------------------------------------------------------

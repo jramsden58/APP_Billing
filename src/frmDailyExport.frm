@@ -99,19 +99,8 @@ Private Sub txtExportDate_MouseDown(ByVal Button As Integer, ByVal Shift As Inte
 End Sub
 
 '------------------------------------------------------------------------------
-' ParseDate - Helper to parse DD/MM/YYYY date strings
+' ParseDate - Helper to parse DD/MM/YYYY date strings (locale-safe)
 '------------------------------------------------------------------------------
 Private Function ParseDate(ByVal sDate As String) As Date
-    If IsDate(sDate) Then
-        ParseDate = CDate(sDate)
-        Exit Function
-    End If
-
-    Dim parts() As String
-    parts = Split(sDate, "/")
-    If UBound(parts) = 2 Then
-        ParseDate = DateSerial(CInt(parts(2)), CInt(parts(1)), CInt(parts(0)))
-    Else
-        Err.Raise 13, , "Invalid date format. Use DD/MM/YYYY."
-    End If
+    ParseDate = ParseDateDMY(sDate)
 End Function

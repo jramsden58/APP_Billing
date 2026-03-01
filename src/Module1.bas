@@ -19,7 +19,7 @@ Dim bState As Boolean
 ' Reset - Resets the frmSaveData form to default values
 '------------------------------------------------------------------------------
 Public Sub Reset()
-    On Error Resume Next
+    On Error GoTo ErrHandler
 
     With frmSaveData
         ' Set default anesthesiologist
@@ -79,7 +79,11 @@ Public Sub Reset()
         .txtWCBDteofInj.BackColor = &HFFFFFF
     End With
 
-    On Error GoTo 0
+    Exit Sub
+
+ErrHandler:
+    ' Silently handle missing controls during reset (form may not be fully loaded)
+    Resume Next
 End Sub
 
 '------------------------------------------------------------------------------
@@ -91,9 +95,9 @@ Public Sub Submit()
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("DailyDatabase")
 
-    ' Find next empty row
+    ' Find next empty row (use End(xlUp) to handle gaps from deleted rows)
     Dim lRow As Long
-    lRow = Application.WorksheetFunction.CountA(ws.Range("B:B")) + 1
+    lRow = ws.Cells(ws.Rows.Count, COL_ANESTH).End(xlUp).Row + 1
 
     With frmSaveData
         ' Column A: Serial number formula
@@ -123,8 +127,8 @@ Public Sub Submit()
             ws.Cells(lRow, COL_SHIFT).Value = .lstShftName.Value
         End If
 
-        ' Column F: On Call
-        ws.Cells(lRow, COL_ONCALL).Value = .chxOnCall.Value
+        ' Column F: On Call (store as "Yes"/"No" string for consistency)
+        ws.Cells(lRow, COL_ONCALL).Value = IIf(.chxOnCall.Value, "Yes", "No")
 
         ' Column G: Shift Type
         If .optOR.Value Then
@@ -209,11 +213,11 @@ Public Sub Submit()
             ws.Cells(lRow, COL_WCBDATE).Value = sWCBDate
         End If
 
-        ' Column Z: Submitted By (Windows username)
-        ws.Cells(lRow, COL_SUBMBY).Value = Application.UserName
+        ' Column Z: Submitted By (Windows username, consistent with file naming)
+        ws.Cells(lRow, COL_SUBMBY).Value = GetCurrentUser()
 
-        ' Column AA: Submitted On (timestamp)
-        ws.Cells(lRow, COL_SUBMON).Value = Format(Now, "DD/MM/YYYY HH:MM:SS")
+        ' Column AA: Submitted On (timestamp - use nn for minutes, not MM)
+        ws.Cells(lRow, COL_SUBMON).Value = FormatTimestamp(Now)
 
         ' Column AB: Sync Status (initially empty, set by SaveToNetwork)
         ws.Cells(lRow, COL_SYNCSTATUS).Value = ""
@@ -275,6 +279,8 @@ End Sub
 ' SyncNow - Syncs all pending records to the network
 '------------------------------------------------------------------------------
 Public Sub SyncNow()
+    On Error GoTo ErrHandler
+
     If Not IsNetworkAvailable() Then
         MsgBox "Network share is not available. Please check your connection.", _
                vbExclamation, "Network Unavailable"
@@ -293,6 +299,10 @@ Public Sub SyncNow()
 
     ' Update status on Home sheet
     UpdateHomeStatus
+    Exit Sub
+
+ErrHandler:
+    MsgBox "Error during sync: " & Err.Description, vbCritical, "Sync Error"
 End Sub
 
 '------------------------------------------------------------------------------
@@ -342,6 +352,9 @@ Public Sub InitialSetup()
             CreateSuperUsersFile
         End If
     End If
+
+    ' Ensure SearchData sheet exists for search functionality
+    EnsureSheetExists "SearchData"
 
     ' Add Sync Status header to DailyDatabase if missing
     Dim ws As Worksheet
