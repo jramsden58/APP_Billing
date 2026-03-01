@@ -108,7 +108,8 @@ Public Function IsValidDateDMY(ByVal sDate As String) As Boolean
 End Function
 
 '------------------------------------------------------------------------------
-' IsValidTime24 - Checks if a string is a valid HH:MM time (24-hour)
+' IsValidTime24 - Checks if a string is a valid time (24-hour)
+' Accepts "HHMMhr" format (e.g., "0800hr") or legacy "HH:MM" format
 '------------------------------------------------------------------------------
 Public Function IsValidTime24(ByVal sTime As String) As Boolean
     On Error GoTo InvalidTime
@@ -119,6 +120,23 @@ Public Function IsValidTime24(ByVal sTime As String) As Boolean
         Exit Function
     End If
 
+    Dim iHour As Long, iMin As Long
+
+    ' Check for "HHMMhr" format (e.g., "0800hr")
+    If Right(LCase(sTime), 2) = "hr" Then
+        Dim sDigits As String
+        sDigits = Left(sTime, Len(sTime) - 2)
+        If Len(sDigits) <> 4 Then
+            IsValidTime24 = False
+            Exit Function
+        End If
+        iHour = CInt(Left(sDigits, 2))
+        iMin = CInt(Right(sDigits, 2))
+        IsValidTime24 = (iHour >= 0 And iHour <= 23 And iMin >= 0 And iMin <= 59)
+        Exit Function
+    End If
+
+    ' Legacy "HH:MM" format
     Dim parts() As String
     parts = Split(sTime, ":")
     If UBound(parts) <> 1 Then
@@ -126,7 +144,6 @@ Public Function IsValidTime24(ByVal sTime As String) As Boolean
         Exit Function
     End If
 
-    Dim iHour As Long, iMin As Long
     iHour = CInt(parts(0))
     iMin = CInt(parts(1))
 

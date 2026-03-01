@@ -19,17 +19,39 @@ Attribute VB_Exposed = False
 '
 ' Handles user input for patient procedures and billing data.
 ' Features: Search, edit, delete functionality
+' Date format: DD/MM/YYYY (auto-formatted with slash insertion)
+' Time format: HHMMhr (e.g., 0800hr) 24-hour clock
 '==============================================================================
 Option Explicit
 
 ' Module-level variable to track the row being edited (0 = not editing)
 Private m_lEditRow As Long
 
+' Flag to prevent recursive formatting in Change events
+Private m_bFormatting As Boolean
+
 '------------------------------------------------------------------------------
 ' Form Initialize - Sets up the form with default values
 '------------------------------------------------------------------------------
 Private Sub UserForm_Initialize()
     m_lEditRow = 0
+    m_bFormatting = False
+
+    ' Enable first-letter match on case detail list boxes
+    ' so typing a letter/number jumps to the first matching item
+    On Error Resume Next
+    lstEval.MatchEntry = fmMatchEntryFirstLetter
+    lstMod1.MatchEntry = fmMatchEntryFirstLetter
+    lstMod2.MatchEntry = fmMatchEntryFirstLetter
+    lstMod3.MatchEntry = fmMatchEntryFirstLetter
+    lstResus.MatchEntry = fmMatchEntryFirstLetter
+    lstObs.MatchEntry = fmMatchEntryFirstLetter
+    lstAcPain.MatchEntry = fmMatchEntryFirstLetter
+    lstChPain.MatchEntry = fmMatchEntryFirstLetter
+    lstMisc.MatchEntry = fmMatchEntryFirstLetter
+    lstShftName.MatchEntry = fmMatchEntryFirstLetter
+    On Error GoTo 0
+
     Call Reset
 End Sub
 
@@ -43,18 +65,23 @@ Private Sub cmdSave_Click()
     If Not ValidateForm() Then Exit Sub
 
     If MsgBox("Save this record?", vbYesNo + vbQuestion, "Confirm Save") = vbYes Then
-        ' If editing, delete the old record now (just before saving the replacement)
+        ' Save the new/updated record first
+        If Not Submit() Then
+            ' Submit failed (error already shown by Submit)
+            Exit Sub
+        End If
+
+        ' If editing, delete the old record AFTER successful save
         If m_lEditRow > 0 Then
             Dim wsEdit As Worksheet
             Set wsEdit = ThisWorkbook.Sheets("DailyDatabase")
-            ' Verify the row still exists and is the same record
+            ' Verify the row still exists
             If m_lEditRow <= wsEdit.Cells(wsEdit.Rows.Count, COL_ANESTH).End(xlUp).Row Then
                 wsEdit.Rows(m_lEditRow).Delete
             End If
             m_lEditRow = 0
         End If
 
-        Call Submit
         Call Reset
         MsgBox "Record saved successfully.", vbInformation, "Saved"
     End If
@@ -196,6 +223,9 @@ Private Sub cmdEdit_Click()
         Exit Sub
     End If
 
+    ' Temporarily disable formatting to avoid auto-format interference during load
+    m_bFormatting = True
+
     ' Load data into form
     With Me
         ' Find anesthesiologist in list
@@ -245,8 +275,22 @@ Private Sub cmdEdit_Click()
 
         ' Procedure fields
         .txtSurgProcCode.Value = CStr(ws.Cells(lastRow, COL_PROCCODE).Value)
-        .txtProcStrtTime.Value = CStr(ws.Cells(lastRow, COL_STARTTIME).Value)
-        .txtProcFinTime.Value = CStr(ws.Cells(lastRow, COL_FINTIME).Value)
+
+        ' Start Time - convert legacy HH:MM to HHMMhr if needed
+        Dim sTime As String
+        sTime = CStr(ws.Cells(lastRow, COL_STARTTIME).Value)
+        If InStr(sTime, ":") > 0 Then
+            sTime = Replace(sTime, ":", "") & "hr"
+        End If
+        .txtProcStrtTime.Value = sTime
+
+        ' Finish Time - convert legacy HH:MM to HHMMhr if needed
+        sTime = CStr(ws.Cells(lastRow, COL_FINTIME).Value)
+        If InStr(sTime, ":") > 0 Then
+            sTime = Replace(sTime, ":", "") & "hr"
+        End If
+        .txtProcFinTime.Value = sTime
+
         .txtMaxIC.Value = CStr(ws.Cells(lastRow, COL_MAXIC).Value)
 
         ' Consults - find in list
@@ -362,7 +406,10 @@ Private Sub cmdEdit_Click()
         End If
     End With
 
-    ' Store the row being edited — do NOT delete until Save is clicked
+    ' Re-enable formatting
+    m_bFormatting = False
+
+    ' Store the row being edited - do NOT delete until Save is clicked
     m_lEditRow = lastRow
 
     MsgBox "Record loaded for editing. Make your changes and click Save." & vbCrLf & _
@@ -371,39 +418,204 @@ Private Sub cmdEdit_Click()
 
     Exit Sub
 ErrHandler:
+    m_bFormatting = False
     m_lEditRow = 0
     MsgBox "Edit error: " & Err.Description, vbCritical, "Error"
 End Sub
 
-'------------------------------------------------------------------------------
-' Placeholder text handlers - Clear placeholder on mouse click
-'------------------------------------------------------------------------------
-Private Sub txtDteOfSer_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
-                                   ByVal X As Single, ByVal Y As Single)
+'==============================================================================
+' DATE FIELD AUTO-FORMATTING (DD/MM/YYYY)
+' Auto-inserts "/" separators as the user types digits
+'==============================================================================
+
+'--- Date of Service ---
+Private Sub txtDteOfSer_Enter()
     If txtDteOfSer.Value = "DD/MM/YYYY" Then
         txtDteOfSer.Value = ""
     End If
 End Sub
 
-Private Sub txtProcStrtTime_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
-                                       ByVal X As Single, ByVal Y As Single)
-    If txtProcStrtTime.Value = "HH:MM" Then
+Private Sub txtDteOfSer_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtDteOfSer.Value)) = 0 Then
+        txtDteOfSer.Value = "DD/MM/YYYY"
+    End If
+End Sub
+
+Private Sub txtDteOfSer_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    ' Only allow digits - slashes are auto-inserted
+    If KeyAscii < 48 Or KeyAscii > 57 Then
+        KeyAscii = 0
+    End If
+End Sub
+
+Private Sub txtDteOfSer_Change()
+    If m_bFormatting Then Exit Sub
+    If txtDteOfSer.Value = "DD/MM/YYYY" Or txtDteOfSer.Value = "" Then Exit Sub
+    FormatDateField txtDteOfSer
+End Sub
+
+'--- WCB Date of Injury ---
+Private Sub txtWCBDteofInj_Enter()
+    If txtWCBDteofInj.Value = "DD/MM/YYYY" Then
+        txtWCBDteofInj.Value = ""
+    End If
+End Sub
+
+Private Sub txtWCBDteofInj_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtWCBDteofInj.Value)) = 0 Then
+        txtWCBDteofInj.Value = "DD/MM/YYYY"
+    End If
+End Sub
+
+Private Sub txtWCBDteofInj_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    ' Only allow digits - slashes are auto-inserted
+    If KeyAscii < 48 Or KeyAscii > 57 Then
+        KeyAscii = 0
+    End If
+End Sub
+
+Private Sub txtWCBDteofInj_Change()
+    If m_bFormatting Then Exit Sub
+    If txtWCBDteofInj.Value = "DD/MM/YYYY" Or txtWCBDteofInj.Value = "" Then Exit Sub
+    FormatDateField txtWCBDteofInj
+End Sub
+
+'==============================================================================
+' TIME FIELD AUTO-FORMATTING (HHMMhr)
+' User types 4 digits, "hr" suffix is auto-appended
+'==============================================================================
+
+'--- Procedure Start Time ---
+Private Sub txtProcStrtTime_Enter()
+    If txtProcStrtTime.Value = "HHMMhr" Then
         txtProcStrtTime.Value = ""
     End If
 End Sub
 
-Private Sub txtProcFinTime_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
-                                      ByVal X As Single, ByVal Y As Single)
-    If txtProcFinTime.Value = "HH:MM" Then
+Private Sub txtProcStrtTime_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtProcStrtTime.Value)) = 0 Then
+        txtProcStrtTime.Value = "HHMMhr"
+    End If
+End Sub
+
+Private Sub txtProcStrtTime_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    ' Only allow digits - "hr" suffix is auto-appended
+    If KeyAscii < 48 Or KeyAscii > 57 Then
+        KeyAscii = 0
+    End If
+End Sub
+
+Private Sub txtProcStrtTime_Change()
+    If m_bFormatting Then Exit Sub
+    If txtProcStrtTime.Value = "HHMMhr" Or txtProcStrtTime.Value = "" Then Exit Sub
+    FormatTimeField txtProcStrtTime
+End Sub
+
+'--- Procedure Finish Time ---
+Private Sub txtProcFinTime_Enter()
+    If txtProcFinTime.Value = "HHMMhr" Then
         txtProcFinTime.Value = ""
     End If
 End Sub
 
-Private Sub txtWCBDteofInj_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
-                                      ByVal X As Single, ByVal Y As Single)
-    If txtWCBDteofInj.Value = "DD/MM/YYYY" Then
-        txtWCBDteofInj.Value = ""
+Private Sub txtProcFinTime_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtProcFinTime.Value)) = 0 Then
+        txtProcFinTime.Value = "HHMMhr"
     End If
+End Sub
+
+Private Sub txtProcFinTime_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    ' Only allow digits - "hr" suffix is auto-appended
+    If KeyAscii < 48 Or KeyAscii > 57 Then
+        KeyAscii = 0
+    End If
+End Sub
+
+Private Sub txtProcFinTime_Change()
+    If m_bFormatting Then Exit Sub
+    If txtProcFinTime.Value = "HHMMhr" Or txtProcFinTime.Value = "" Then Exit Sub
+    FormatTimeField txtProcFinTime
+End Sub
+
+'==============================================================================
+' FORMAT HELPER FUNCTIONS
+'==============================================================================
+
+'------------------------------------------------------------------------------
+' ExtractDigits - Returns only digit characters from a string
+'------------------------------------------------------------------------------
+Private Function ExtractDigits(ByVal s As String) As String
+    Dim i As Long
+    Dim sResult As String
+    For i = 1 To Len(s)
+        If Mid(s, i, 1) >= "0" And Mid(s, i, 1) <= "9" Then
+            sResult = sResult & Mid(s, i, 1)
+        End If
+    Next i
+    ExtractDigits = sResult
+End Function
+
+'------------------------------------------------------------------------------
+' FormatDateField - Auto-inserts "/" separators for DD/MM/YYYY format
+'------------------------------------------------------------------------------
+Private Sub FormatDateField(ByRef ctl As MSForms.TextBox)
+    m_bFormatting = True
+
+    Dim sDigits As String
+    sDigits = ExtractDigits(ctl.Value)
+
+    ' Limit to 8 digits (DDMMYYYY)
+    If Len(sDigits) > 8 Then sDigits = Left(sDigits, 8)
+
+    ' Build formatted string with "/" separators
+    Dim sFormatted As String
+    If Len(sDigits) <= 2 Then
+        sFormatted = sDigits
+    ElseIf Len(sDigits) <= 4 Then
+        sFormatted = Left(sDigits, 2) & "/" & Mid(sDigits, 3)
+    Else
+        sFormatted = Left(sDigits, 2) & "/" & Mid(sDigits, 3, 2) & "/" & Mid(sDigits, 5)
+    End If
+
+    If sFormatted <> ctl.Value Then
+        ctl.Value = sFormatted
+        ctl.SelStart = Len(sFormatted)
+    End If
+
+    m_bFormatting = False
+End Sub
+
+'------------------------------------------------------------------------------
+' FormatTimeField - Auto-appends "hr" suffix when 4 digits are entered
+'------------------------------------------------------------------------------
+Private Sub FormatTimeField(ByRef ctl As MSForms.TextBox)
+    m_bFormatting = True
+
+    Dim sDigits As String
+    sDigits = ExtractDigits(ctl.Value)
+
+    ' Limit to 4 digits (HHMM)
+    If Len(sDigits) > 4 Then sDigits = Left(sDigits, 4)
+
+    ' Build formatted string - append "hr" when 4 digits entered
+    Dim sFormatted As String
+    If Len(sDigits) = 4 Then
+        sFormatted = sDigits & "hr"
+    Else
+        sFormatted = sDigits
+    End If
+
+    If sFormatted <> ctl.Value Then
+        ctl.Value = sFormatted
+        ' Position cursor before "hr" suffix
+        If Len(sDigits) = 4 Then
+            ctl.SelStart = 4
+        Else
+            ctl.SelStart = Len(sFormatted)
+        End If
+    End If
+
+    m_bFormatting = False
 End Sub
 
 '------------------------------------------------------------------------------
@@ -443,27 +655,29 @@ Private Function ValidateForm() As Boolean
         bValid = False
     End If
 
-    ' Check start time is valid HH:MM
+    ' Check start time is valid HHMMhr (24-hour)
     Dim sStart As String
     sStart = txtProcStrtTime.Value
-    If sStart = "HH:MM" Or Len(sStart) = 0 Then
+    If sStart = "HHMMhr" Or Len(sStart) = 0 Then
         txtProcStrtTime.BackColor = &HC0C0FF
         bValid = False
     ElseIf Not IsValidTime24(sStart) Then
         txtProcStrtTime.BackColor = &HC0C0FF
-        MsgBox "Invalid start time. Please use HH:MM (24-hour format).", vbExclamation, "Validation"
+        MsgBox "Invalid start time. Please enter 4 digits in 24-hour format (e.g., 0800hr).", _
+               vbExclamation, "Validation"
         bValid = False
     End If
 
-    ' Check finish time is valid HH:MM
+    ' Check finish time is valid HHMMhr (24-hour)
     Dim sFinish As String
     sFinish = txtProcFinTime.Value
-    If sFinish = "HH:MM" Or Len(sFinish) = 0 Then
+    If sFinish = "HHMMhr" Or Len(sFinish) = 0 Then
         txtProcFinTime.BackColor = &HC0C0FF
         bValid = False
     ElseIf Not IsValidTime24(sFinish) Then
         txtProcFinTime.BackColor = &HC0C0FF
-        MsgBox "Invalid finish time. Please use HH:MM (24-hour format).", vbExclamation, "Validation"
+        MsgBox "Invalid finish time. Please enter 4 digits in 24-hour format (e.g., 1630hr).", _
+               vbExclamation, "Validation"
         bValid = False
     End If
 

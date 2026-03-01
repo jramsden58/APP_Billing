@@ -44,11 +44,11 @@ Public Sub Reset()
 
         ' Procedure fields
         .txtSurgProcCode.Value = ""
-        .txtProcStrtTime.Value = "HH:MM"
-        .txtProcFinTime.Value = "HH:MM"
+        .txtProcStrtTime.Value = "HHMMhr"
+        .txtProcFinTime.Value = "HHMMhr"
         .txtMaxIC.Value = ""
 
-        ' Fee item lists - clear selections
+        ' Fee item lists - clear selections (blank on first entry)
         .lstEval.ListIndex = -1
         .lstMod1.ListIndex = -1
         .lstMod2.ListIndex = -1
@@ -88,8 +88,9 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' Submit - Saves form data to DailyDatabase and network share
+' Returns True on success, False on failure
 '------------------------------------------------------------------------------
-Public Sub Submit()
+Public Function Submit() As Boolean
     On Error GoTo ErrHandler
 
     Dim ws As Worksheet
@@ -143,14 +144,14 @@ Public Sub Submit()
         ' Column I: Procedure Start Time
         Dim sStart As String
         sStart = .txtProcStrtTime.Value
-        If sStart <> "HH:MM" Then
+        If sStart <> "HHMMhr" And Len(sStart) > 0 Then
             ws.Cells(lRow, COL_STARTTIME).Value = sStart
         End If
 
         ' Column J: Procedure Finish Time
         Dim sFinish As String
         sFinish = .txtProcFinTime.Value
-        If sFinish <> "HH:MM" Then
+        If sFinish <> "HHMMhr" And Len(sFinish) > 0 Then
             ws.Cells(lRow, COL_FINTIME).Value = sFinish
         End If
 
@@ -241,11 +242,13 @@ Public Sub Submit()
                vbExclamation, "Offline Mode"
     End If
 
-    Exit Sub
+    Submit = True
+    Exit Function
 
 ErrHandler:
+    Submit = False
     MsgBox "Error saving data: " & Err.Description, vbCritical, "Save Error"
-End Sub
+End Function
 
 '------------------------------------------------------------------------------
 ' Show_Form1 - Opens the Data Entry form
