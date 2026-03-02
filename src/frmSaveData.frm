@@ -22,9 +22,9 @@ Attribute VB_Exposed = False
 ' Date format: DD/MM/YYYY (auto-formatted with slash insertion)
 ' Time format: HHMMhr (e.g., 0800hr) 24-hour clock
 '
-' List boxes start empty. As the user types, matching items appear
-' (case-insensitive prefix match). Backspace removes last character,
-' Escape clears the filter.
+' List boxes show all items on load. As the user types, items filter
+' to matching entries (case-insensitive prefix match). Backspace
+' removes last character, Escape clears the filter and shows all.
 '==============================================================================
 Option Explicit
 
@@ -89,8 +89,8 @@ Private Sub UserForm_Initialize()
     ' Clear all search strings
     ClearAllSearchText
 
-    ' Clear all list boxes so they start empty
-    ClearAllListBoxes
+    ' Populate all list boxes with full item lists
+    PopulateAllListBoxes
 
     Call Reset
 End Sub
@@ -196,6 +196,32 @@ Private Sub ClearAllListBoxes()
 End Sub
 
 '------------------------------------------------------------------------------
+' PopulateAllListBoxes - Populates all list boxes with full item lists
+' Called on initialize and after reset so users can see and select items
+'------------------------------------------------------------------------------
+Private Sub PopulateAllListBoxes()
+    PopulateFullList lstAnesth, m_aAnesth
+    PopulateFullList lstShftName, m_aShftName
+    PopulateFullList lstEval, m_aEval
+    PopulateFullList lstMod1, m_aMod1
+    PopulateFullList lstMod2, m_aMod2
+    PopulateFullList lstMod3, m_aMod3
+    PopulateFullList lstResus, m_aResus
+    PopulateFullList lstObs, m_aObs
+    PopulateFullList lstAcPain, m_aAcPain
+    PopulateFullList lstChPain, m_aChPain
+    PopulateFullList lstMisc, m_aMisc
+End Sub
+
+'------------------------------------------------------------------------------
+' RepopulateAllLists - Public wrapper so Module1.Reset can repopulate lists
+'------------------------------------------------------------------------------
+Public Sub RepopulateAllLists()
+    ClearAllSearchText
+    PopulateAllListBoxes
+End Sub
+
+'------------------------------------------------------------------------------
 ' FilterListBox - Filters a list box based on search text
 ' Shows items that match the search text (case-insensitive prefix match)
 '------------------------------------------------------------------------------
@@ -203,8 +229,16 @@ Private Sub FilterListBox(ByRef lst As MSForms.ListBox, ByRef allItems() As Stri
                           ByVal sSearch As String)
     lst.Clear
 
-    ' If search is empty, list stays empty (blank until user types)
-    If Len(sSearch) = 0 Then Exit Sub
+    ' If search is empty, show ALL items so the list is usable
+    If Len(sSearch) = 0 Then
+        Dim j As Long
+        For j = LBound(allItems) To UBound(allItems)
+            If Len(allItems(j)) > 0 Then
+                lst.AddItem allItems(j)
+            End If
+        Next j
+        Exit Sub
+    End If
 
     ' Show items whose prefix matches the search text
     Dim i As Long

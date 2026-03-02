@@ -15,18 +15,12 @@ Public Sub Reset()
     On Error GoTo ErrHandler
 
     With frmSaveData
-        ' Clear anesthesiologist list (start empty, filter-as-you-type)
-        .lstAnesth.Clear
-
         ' Site defaults
         .optRCH.Value = True
         .optERH.Value = False
 
         ' Date placeholder
         .txtDteOfSer.Value = "DD/MM/YYYY"
-
-        ' Clear shift name list (start empty, filter-as-you-type)
-        .lstShftName.Clear
 
         ' On Call
         .chxOnCall.Value = False
@@ -41,16 +35,8 @@ Public Sub Reset()
         .txtProcFinTime.Value = "HHMMhr"
         .txtMaxIC.Value = ""
 
-        ' Fee item lists - clear all items (start empty, filter-as-you-type)
-        .lstEval.Clear
-        .lstMod1.Clear
-        .lstMod2.Clear
-        .lstMod3.Clear
-        .lstResus.Clear
-        .lstObs.Clear
-        .lstAcPain.Clear
-        .lstChPain.Clear
-        .lstMisc.Clear
+        ' Repopulate all list boxes with full item lists (clears search text too)
+        .RepopulateAllLists
 
         ' WCB fields
         .txtWCBNum.Value = ""
