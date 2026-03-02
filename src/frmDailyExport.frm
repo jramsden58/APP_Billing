@@ -29,7 +29,7 @@ Attribute VB_Exposed = False
 '   cmdExit      - CommandButton "Exit"
 '   lblStatus    - Label for status messages
 '   chkOpenFile  - CheckBox "Open file after export"
-'   chkPDF       - CheckBox "Also generate consolidated PDF"
+'   chkPDF       - CheckBox "Also generate PDF reports (via ORReportingForm)"
 '==============================================================================
 Option Explicit
 
@@ -81,21 +81,21 @@ Private Sub cmdExport_Click()
 
         lblStatus.Caption = "Export complete: " & sResult
 
-        ' Generate consolidated PDF if requested
+        ' Generate per-anesthesiologist PDFs via ORReportingForm if requested
         Dim bPDF As Boolean
         On Error Resume Next
         bPDF = chkPDF.Value
         On Error GoTo ErrHandler
 
         If bPDF Then
-            lblStatus.Caption = "Generating consolidated PDF..."
+            lblStatus.Caption = "Generating PDFs via ORReportingForm..."
             DoEvents
-            Dim sPDFResult As String
-            sPDFResult = GenerateConsolidatedPDF(dtDate)
-            If Len(sPDFResult) > 0 Then
-                lblStatus.Caption = "Export and PDF complete."
+            Dim sPDFFolder As String
+            sPDFFolder = GenerateConsolidatedPDF(dtDate)
+            If Len(sPDFFolder) > 0 Then
+                lblStatus.Caption = "Export and PDF reports complete."
             Else
-                lblStatus.Caption = "Excel export complete. PDF generation had no data."
+                lblStatus.Caption = "Excel export complete. No data for PDF generation."
             End If
         End If
 
@@ -103,9 +103,9 @@ Private Sub cmdExport_Click()
             Workbooks.Open sResult
         Else
             MsgBox "Export complete." & vbCrLf & vbCrLf & _
-                   "File saved to:" & vbCrLf & sResult & _
-                   IIf(bPDF And Len(sPDFResult) > 0, vbCrLf & vbCrLf & _
-                   "PDF saved to:" & vbCrLf & sPDFResult, ""), _
+                   "Excel file saved to:" & vbCrLf & sResult & _
+                   IIf(bPDF And Len(sPDFFolder) > 0, vbCrLf & vbCrLf & _
+                   "PDF reports saved to:" & vbCrLf & sPDFFolder, ""), _
                    vbInformation, "Export Complete"
         End If
     Else
