@@ -454,6 +454,7 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' HandleListKeyPress2Col - Common handler for two-column list box key presses
+' If typed text produces no matches, shows error and resets to full list
 '------------------------------------------------------------------------------
 Private Sub HandleListKeyPress2Col(ByRef lst As MSForms.ListBox, ByRef vItems As Variant, _
                                    ByRef sSearch As String, ByVal KeyAscii As MSForms.ReturnInteger)
@@ -470,12 +471,22 @@ Private Sub HandleListKeyPress2Col(ByRef lst As MSForms.ListBox, ByRef vItems As
 
     FilterListBox2Col lst, vItems, sSearch
 
+    ' If no matches found, notify user and reset to full list
+    If lst.ListCount = 0 And Len(sSearch) > 0 Then
+        MsgBox "No matching item found for '" & sSearch & "'." & vbCrLf & _
+               "The list has been reset. Please try again.", _
+               vbExclamation, "Item Not Found"
+        sSearch = ""
+        FilterListBox2Col lst, vItems, sSearch
+    End If
+
     ' Consume the key so VBA doesn't try its own matching
     KeyAscii = 0
 End Sub
 
 '------------------------------------------------------------------------------
 ' HandleListKeyPress - Common handler for single-column list box key presses
+' If typed text produces no matches, shows error and resets to full list
 '------------------------------------------------------------------------------
 Private Sub HandleListKeyPress(ByRef lst As MSForms.ListBox, ByRef allItems() As String, _
                                ByRef sSearch As String, ByVal KeyAscii As MSForms.ReturnInteger)
@@ -491,6 +502,15 @@ Private Sub HandleListKeyPress(ByRef lst As MSForms.ListBox, ByRef allItems() As
     End Select
 
     FilterListBox lst, allItems, sSearch
+
+    ' If no matches found, notify user and reset to full list
+    If lst.ListCount = 0 And Len(sSearch) > 0 Then
+        MsgBox "No matching item found for '" & sSearch & "'." & vbCrLf & _
+               "The list has been reset. Please try again.", _
+               vbExclamation, "Item Not Found"
+        sSearch = ""
+        FilterListBox lst, allItems, sSearch
+    End If
 
     ' Consume the key so VBA doesn't try its own matching
     KeyAscii = 0
