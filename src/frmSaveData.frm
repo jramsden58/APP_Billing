@@ -25,6 +25,9 @@ Attribute VB_Exposed = False
 ' List boxes show all items on load. As the user types, items filter
 ' to matching entries (case-insensitive prefix match). Backspace
 ' removes last character, Escape clears the filter and shows all.
+'
+' Two-column list boxes display both a code and description from
+' LookupLists. Filtering matches against either column.
 '==============================================================================
 Option Explicit
 
@@ -34,19 +37,19 @@ Private m_lEditRow As Long
 ' Flag to prevent recursive formatting in Change events
 Private m_bFormatting As Boolean
 
-' Master item arrays for filter-as-you-type list boxes
-' Loaded once from LookupLists during Initialize, used to filter on each keypress
-Private m_aAnesth() As String
-Private m_aShftName() As String
-Private m_aEval() As String
-Private m_aMod1() As String
-Private m_aMod2() As String
-Private m_aMod3() As String
-Private m_aResus() As String
-Private m_aObs() As String
-Private m_aAcPain() As String
-Private m_aChPain() As String
-Private m_aMisc() As String
+' Two-column master arrays (Variant containing 2D array: rows x 2)
+' Column 1 = code/name, Column 2 = description
+Private m_aAnesth As Variant      ' LookupLists columns A, B
+Private m_aEval As Variant         ' LookupLists columns K, L
+Private m_aMod As Variant          ' LookupLists columns O, P (shared by Mod1/2/3)
+Private m_aResus As Variant        ' LookupLists columns W, X
+Private m_aObs As Variant          ' LookupLists columns AE, AF
+Private m_aAcPain As Variant       ' LookupLists columns AA, AB
+Private m_aChPain As Variant       ' LookupLists columns S, T
+Private m_aMisc As Variant         ' LookupLists columns AI, AJ
+
+' Single-column master array
+Private m_aShftName() As String    ' LookupLists column E
 
 ' Per-listbox search text for filter-as-you-type
 Private m_sSearchAnesth As String
@@ -83,6 +86,18 @@ Private Sub UserForm_Initialize()
     lstShftName.MatchEntry = fmMatchEntryNone
     On Error GoTo 0
 
+    ' Configure two-column list boxes
+    SetupTwoColumnListBox lstAnesth, "80;80"
+    SetupTwoColumnListBox lstEval, "40;100"
+    SetupTwoColumnListBox lstMod1, "40;100"
+    SetupTwoColumnListBox lstMod2, "40;100"
+    SetupTwoColumnListBox lstMod3, "40;100"
+    SetupTwoColumnListBox lstResus, "40;100"
+    SetupTwoColumnListBox lstObs, "40;100"
+    SetupTwoColumnListBox lstAcPain, "40;100"
+    SetupTwoColumnListBox lstChPain, "40;100"
+    SetupTwoColumnListBox lstMisc, "40;100"
+
     ' Load master item arrays from LookupLists sheet
     LoadMasterLists
 
@@ -96,6 +111,16 @@ Private Sub UserForm_Initialize()
 End Sub
 
 '------------------------------------------------------------------------------
+' SetupTwoColumnListBox - Configures a list box to show two columns
+'------------------------------------------------------------------------------
+Private Sub SetupTwoColumnListBox(ByRef lst As MSForms.ListBox, ByVal sWidths As String)
+    On Error Resume Next
+    lst.ColumnCount = 2
+    lst.ColumnWidths = sWidths
+    On Error GoTo 0
+End Sub
+
+'------------------------------------------------------------------------------
 ' LoadMasterLists - Loads all list items from LookupLists into arrays
 '------------------------------------------------------------------------------
 Private Sub LoadMasterLists()
@@ -105,18 +130,67 @@ Private Sub LoadMasterLists()
     If wsLookup Is Nothing Then Exit Sub
     On Error GoTo 0
 
-    m_aAnesth = LoadColumnToArray(wsLookup, 1)      ' Column A: Anesthesiologists
-    m_aShftName = LoadColumnToArray(wsLookup, 3)     ' Column C: Shift Names
-    m_aEval = LoadColumnToArray(wsLookup, 4)         ' Column D: Consults/Eval
-    m_aMod1 = LoadColumnToArray(wsLookup, 5)         ' Column E: Fee Modifier 1
-    m_aMod2 = LoadColumnToArray(wsLookup, 6)         ' Column F: Fee Modifier 2
-    m_aMod3 = LoadColumnToArray(wsLookup, 7)         ' Column G: Fee Modifier 3
-    m_aResus = LoadColumnToArray(wsLookup, 8)        ' Column H: Resuscitation
-    m_aObs = LoadColumnToArray(wsLookup, 9)          ' Column I: Obstetrics
-    m_aAcPain = LoadColumnToArray(wsLookup, 10)      ' Column J: Acute Pain
-    m_aChPain = LoadColumnToArray(wsLookup, 11)      ' Column K: Chronic Pain
-    m_aMisc = LoadColumnToArray(wsLookup, 12)        ' Column L: Miscellaneous
+    ' Two-column list boxes: load code + description pairs
+    m_aAnesth = LoadTwoColumnsToArray(wsLookup, 1, 2)      ' Columns A, B
+    m_aEval = LoadTwoColumnsToArray(wsLookup, 11, 12)       ' Columns K, L
+    m_aMod = LoadTwoColumnsToArray(wsLookup, 15, 16)        ' Columns O, P
+    m_aResus = LoadTwoColumnsToArray(wsLookup, 23, 24)      ' Columns W, X
+    m_aObs = LoadTwoColumnsToArray(wsLookup, 31, 32)        ' Columns AE, AF
+    m_aAcPain = LoadTwoColumnsToArray(wsLookup, 27, 28)     ' Columns AA, AB
+    m_aChPain = LoadTwoColumnsToArray(wsLookup, 19, 20)     ' Columns S, T
+    m_aMisc = LoadTwoColumnsToArray(wsLookup, 35, 36)       ' Columns AI, AJ
+
+    ' Single-column list box
+    m_aShftName = LoadColumnToArray(wsLookup, 5)            ' Column E
 End Sub
+
+'------------------------------------------------------------------------------
+' LoadTwoColumnsToArray - Reads non-empty rows from two columns into a 2D array
+' Returns a Variant containing a 2D String array (1 To n, 1 To 2)
+' Returns Empty if no data found
+'------------------------------------------------------------------------------
+Private Function LoadTwoColumnsToArray(ByVal ws As Worksheet, ByVal lCol1 As Long, _
+                                       ByVal lCol2 As Long) As Variant
+    Dim lastRow As Long
+    ' Use the longer of the two columns
+    Dim lr1 As Long, lr2 As Long
+    lr1 = ws.Cells(ws.Rows.Count, lCol1).End(xlUp).Row
+    lr2 = ws.Cells(ws.Rows.Count, lCol2).End(xlUp).Row
+    lastRow = IIf(lr1 > lr2, lr1, lr2)
+
+    ' Count non-empty rows (skip header row 1)
+    Dim lCount As Long
+    lCount = 0
+    Dim i As Long
+    For i = 2 To lastRow
+        If Len(Trim(CStr(ws.Cells(i, lCol1).Value))) > 0 Or _
+           Len(Trim(CStr(ws.Cells(i, lCol2).Value))) > 0 Then
+            lCount = lCount + 1
+        End If
+    Next i
+
+    If lCount = 0 Then
+        LoadTwoColumnsToArray = Empty
+        Exit Function
+    End If
+
+    Dim result() As String
+    ReDim result(1 To lCount, 1 To 2)
+    Dim idx As Long
+    idx = 0
+    For i = 2 To lastRow
+        Dim s1 As String, s2 As String
+        s1 = Trim(CStr(ws.Cells(i, lCol1).Value))
+        s2 = Trim(CStr(ws.Cells(i, lCol2).Value))
+        If Len(s1) > 0 Or Len(s2) > 0 Then
+            idx = idx + 1
+            result(idx, 1) = s1
+            result(idx, 2) = s2
+        End If
+    Next i
+
+    LoadTwoColumnsToArray = result
+End Function
 
 '------------------------------------------------------------------------------
 ' LoadColumnToArray - Reads non-empty cells from a column into a string array
@@ -200,17 +274,20 @@ End Sub
 ' Called on initialize and after reset so users can see and select items
 '------------------------------------------------------------------------------
 Private Sub PopulateAllListBoxes()
-    PopulateFullList lstAnesth, m_aAnesth
+    ' Two-column list boxes
+    PopulateFullList2Col lstAnesth, m_aAnesth
+    PopulateFullList2Col lstEval, m_aEval
+    PopulateFullList2Col lstMod1, m_aMod
+    PopulateFullList2Col lstMod2, m_aMod
+    PopulateFullList2Col lstMod3, m_aMod
+    PopulateFullList2Col lstResus, m_aResus
+    PopulateFullList2Col lstObs, m_aObs
+    PopulateFullList2Col lstAcPain, m_aAcPain
+    PopulateFullList2Col lstChPain, m_aChPain
+    PopulateFullList2Col lstMisc, m_aMisc
+
+    ' Single-column list box
     PopulateFullList lstShftName, m_aShftName
-    PopulateFullList lstEval, m_aEval
-    PopulateFullList lstMod1, m_aMod1
-    PopulateFullList lstMod2, m_aMod2
-    PopulateFullList lstMod3, m_aMod3
-    PopulateFullList lstResus, m_aResus
-    PopulateFullList lstObs, m_aObs
-    PopulateFullList lstAcPain, m_aAcPain
-    PopulateFullList lstChPain, m_aChPain
-    PopulateFullList lstMisc, m_aMisc
 End Sub
 
 '------------------------------------------------------------------------------
@@ -222,7 +299,45 @@ Public Sub RepopulateAllLists()
 End Sub
 
 '------------------------------------------------------------------------------
-' FilterListBox - Filters a list box based on search text
+' FilterListBox2Col - Filters a two-column list box based on search text
+' Shows items where either column matches the search prefix (case-insensitive)
+'------------------------------------------------------------------------------
+Private Sub FilterListBox2Col(ByRef lst As MSForms.ListBox, ByRef vItems As Variant, _
+                              ByVal sSearch As String)
+    lst.Clear
+
+    If IsEmpty(vItems) Then Exit Sub
+
+    ' If search is empty, show ALL items so the list is usable
+    If Len(sSearch) = 0 Then
+        Dim j As Long
+        For j = LBound(vItems, 1) To UBound(vItems, 1)
+            lst.AddItem vItems(j, 1)
+            lst.List(lst.ListCount - 1, 1) = vItems(j, 2)
+        Next j
+        Exit Sub
+    End If
+
+    ' Show items where either column prefix matches the search text
+    Dim i As Long
+    Dim sLower As String
+    sLower = LCase(sSearch)
+    For i = LBound(vItems, 1) To UBound(vItems, 1)
+        If LCase(Left(vItems(i, 1), Len(sSearch))) = sLower Or _
+           LCase(Left(vItems(i, 2), Len(sSearch))) = sLower Then
+            lst.AddItem vItems(i, 1)
+            lst.List(lst.ListCount - 1, 1) = vItems(i, 2)
+        End If
+    Next i
+
+    ' Auto-select if only one match
+    If lst.ListCount = 1 Then
+        lst.ListIndex = 0
+    End If
+End Sub
+
+'------------------------------------------------------------------------------
+' FilterListBox - Filters a single-column list box based on search text
 ' Shows items that match the search text (case-insensitive prefix match)
 '------------------------------------------------------------------------------
 Private Sub FilterListBox(ByRef lst As MSForms.ListBox, ByRef allItems() As String, _
@@ -257,7 +372,21 @@ Private Sub FilterListBox(ByRef lst As MSForms.ListBox, ByRef allItems() As Stri
 End Sub
 
 '------------------------------------------------------------------------------
-' PopulateFullList - Shows all items in a list box (used when loading for edit)
+' PopulateFullList2Col - Shows all items in a two-column list box
+'------------------------------------------------------------------------------
+Private Sub PopulateFullList2Col(ByRef lst As MSForms.ListBox, ByRef vItems As Variant)
+    lst.Clear
+    If IsEmpty(vItems) Then Exit Sub
+
+    Dim i As Long
+    For i = LBound(vItems, 1) To UBound(vItems, 1)
+        lst.AddItem vItems(i, 1)
+        lst.List(lst.ListCount - 1, 1) = vItems(i, 2)
+    Next i
+End Sub
+
+'------------------------------------------------------------------------------
+' PopulateFullList - Shows all items in a single-column list box
 '------------------------------------------------------------------------------
 Private Sub PopulateFullList(ByRef lst As MSForms.ListBox, ByRef allItems() As String)
     lst.Clear
@@ -275,7 +404,7 @@ End Sub
 '==============================================================================
 
 Private Sub lstAnesth_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstAnesth, m_aAnesth, m_sSearchAnesth, KeyAscii
+    HandleListKeyPress2Col lstAnesth, m_aAnesth, m_sSearchAnesth, KeyAscii
 End Sub
 
 Private Sub lstShftName_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
@@ -283,43 +412,65 @@ Private Sub lstShftName_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
 End Sub
 
 Private Sub lstEval_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstEval, m_aEval, m_sSearchEval, KeyAscii
+    HandleListKeyPress2Col lstEval, m_aEval, m_sSearchEval, KeyAscii
 End Sub
 
 Private Sub lstMod1_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstMod1, m_aMod1, m_sSearchMod1, KeyAscii
+    HandleListKeyPress2Col lstMod1, m_aMod, m_sSearchMod1, KeyAscii
 End Sub
 
 Private Sub lstMod2_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstMod2, m_aMod2, m_sSearchMod2, KeyAscii
+    HandleListKeyPress2Col lstMod2, m_aMod, m_sSearchMod2, KeyAscii
 End Sub
 
 Private Sub lstMod3_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstMod3, m_aMod3, m_sSearchMod3, KeyAscii
+    HandleListKeyPress2Col lstMod3, m_aMod, m_sSearchMod3, KeyAscii
 End Sub
 
 Private Sub lstResus_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstResus, m_aResus, m_sSearchResus, KeyAscii
+    HandleListKeyPress2Col lstResus, m_aResus, m_sSearchResus, KeyAscii
 End Sub
 
 Private Sub lstObs_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstObs, m_aObs, m_sSearchObs, KeyAscii
+    HandleListKeyPress2Col lstObs, m_aObs, m_sSearchObs, KeyAscii
 End Sub
 
 Private Sub lstAcPain_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstAcPain, m_aAcPain, m_sSearchAcPain, KeyAscii
+    HandleListKeyPress2Col lstAcPain, m_aAcPain, m_sSearchAcPain, KeyAscii
 End Sub
 
 Private Sub lstChPain_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstChPain, m_aChPain, m_sSearchChPain, KeyAscii
+    HandleListKeyPress2Col lstChPain, m_aChPain, m_sSearchChPain, KeyAscii
 End Sub
 
 Private Sub lstMisc_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstMisc, m_aMisc, m_sSearchMisc, KeyAscii
+    HandleListKeyPress2Col lstMisc, m_aMisc, m_sSearchMisc, KeyAscii
 End Sub
 
 '------------------------------------------------------------------------------
-' HandleListKeyPress - Common handler for list box key presses
+' HandleListKeyPress2Col - Common handler for two-column list box key presses
+'------------------------------------------------------------------------------
+Private Sub HandleListKeyPress2Col(ByRef lst As MSForms.ListBox, ByRef vItems As Variant, _
+                                   ByRef sSearch As String, ByVal KeyAscii As MSForms.ReturnInteger)
+    Select Case KeyAscii
+        Case 8 ' Backspace
+            If Len(sSearch) > 0 Then
+                sSearch = Left(sSearch, Len(sSearch) - 1)
+            End If
+        Case 27 ' Escape
+            sSearch = ""
+        Case Else
+            sSearch = sSearch & Chr(KeyAscii)
+    End Select
+
+    FilterListBox2Col lst, vItems, sSearch
+
+    ' Consume the key so VBA doesn't try its own matching
+    KeyAscii = 0
+End Sub
+
+'------------------------------------------------------------------------------
+' HandleListKeyPress - Common handler for single-column list box key presses
 '------------------------------------------------------------------------------
 Private Sub HandleListKeyPress(ByRef lst As MSForms.ListBox, ByRef allItems() As String, _
                                ByRef sSearch As String, ByVal KeyAscii As MSForms.ReturnInteger)
@@ -592,26 +743,26 @@ Private Sub cmdEdit_Click()
     m_bFormatting = True
 
     ' Populate full lists so we can find items during edit load
-    PopulateFullList lstAnesth, m_aAnesth
+    PopulateFullList2Col lstAnesth, m_aAnesth
     PopulateFullList lstShftName, m_aShftName
-    PopulateFullList lstEval, m_aEval
-    PopulateFullList lstMod1, m_aMod1
-    PopulateFullList lstMod2, m_aMod2
-    PopulateFullList lstMod3, m_aMod3
-    PopulateFullList lstResus, m_aResus
-    PopulateFullList lstObs, m_aObs
-    PopulateFullList lstAcPain, m_aAcPain
-    PopulateFullList lstChPain, m_aChPain
-    PopulateFullList lstMisc, m_aMisc
+    PopulateFullList2Col lstEval, m_aEval
+    PopulateFullList2Col lstMod1, m_aMod
+    PopulateFullList2Col lstMod2, m_aMod
+    PopulateFullList2Col lstMod3, m_aMod
+    PopulateFullList2Col lstResus, m_aResus
+    PopulateFullList2Col lstObs, m_aObs
+    PopulateFullList2Col lstAcPain, m_aAcPain
+    PopulateFullList2Col lstChPain, m_aChPain
+    PopulateFullList2Col lstMisc, m_aMisc
 
     ' Load data into form
     With Me
-        ' Find anesthesiologist in list
+        ' Find anesthesiologist in list (match column 0 = code/name)
         Dim sAnesth As String
         sAnesth = CStr(ws.Cells(lastRow, COL_ANESTH).Value)
         Dim k As Long
         For k = 0 To .lstAnesth.ListCount - 1
-            If .lstAnesth.List(k) = sAnesth Then
+            If .lstAnesth.List(k, 0) = sAnesth Then
                 .lstAnesth.ListIndex = k
                 Exit For
             End If
@@ -627,7 +778,7 @@ Private Sub cmdEdit_Click()
         ' Date
         .txtDteOfSer.Value = CStr(ws.Cells(lastRow, COL_DATE).Value)
 
-        ' Shift Name - find in list
+        ' Shift Name - find in list (single column)
         Dim sShift As String
         sShift = CStr(ws.Cells(lastRow, COL_SHIFT).Value)
         If Len(sShift) > 0 Then
@@ -671,100 +822,100 @@ Private Sub cmdEdit_Click()
 
         .txtMaxIC.Value = CStr(ws.Cells(lastRow, COL_MAXIC).Value)
 
-        ' Consults - find in list
+        ' Consults - find in two-column list (match column 0)
         Dim sVal As String
         sVal = CStr(ws.Cells(lastRow, COL_CONSULT).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstEval.ListCount - 1
-                If .lstEval.List(k) = sVal Then
+                If .lstEval.List(k, 0) = sVal Then
                     .lstEval.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Fee Modifier 1
+        ' Fee Modifier 1 (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_MOD1).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstMod1.ListCount - 1
-                If .lstMod1.List(k) = sVal Then
+                If .lstMod1.List(k, 0) = sVal Then
                     .lstMod1.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Fee Modifier 2
+        ' Fee Modifier 2 (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_MOD2).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstMod2.ListCount - 1
-                If .lstMod2.List(k) = sVal Then
+                If .lstMod2.List(k, 0) = sVal Then
                     .lstMod2.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Fee Modifier 3
+        ' Fee Modifier 3 (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_MOD3).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstMod3.ListCount - 1
-                If .lstMod3.List(k) = sVal Then
+                If .lstMod3.List(k, 0) = sVal Then
                     .lstMod3.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Resuscitation
+        ' Resuscitation (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_RESUS).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstResus.ListCount - 1
-                If .lstResus.List(k) = sVal Then
+                If .lstResus.List(k, 0) = sVal Then
                     .lstResus.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Obstetrics
+        ' Obstetrics (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_OBS).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstObs.ListCount - 1
-                If .lstObs.List(k) = sVal Then
+                If .lstObs.List(k, 0) = sVal Then
                     .lstObs.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Acute Pain
+        ' Acute Pain (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_ACUTEPAIN).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstAcPain.ListCount - 1
-                If .lstAcPain.List(k) = sVal Then
+                If .lstAcPain.List(k, 0) = sVal Then
                     .lstAcPain.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Chronic Pain
+        ' Chronic Pain (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_CHRONPAIN).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstChPain.ListCount - 1
-                If .lstChPain.List(k) = sVal Then
+                If .lstChPain.List(k, 0) = sVal Then
                     .lstChPain.ListIndex = k
                     Exit For
                 End If
             Next k
         End If
 
-        ' Miscellaneous
+        ' Miscellaneous (match column 0)
         sVal = CStr(ws.Cells(lastRow, COL_MISC).Value)
         If Len(sVal) > 0 Then
             For k = 0 To .lstMisc.ListCount - 1
-                If .lstMisc.List(k) = sVal Then
+                If .lstMisc.List(k, 0) = sVal Then
                     .lstMisc.ListIndex = k
                     Exit For
                 End If

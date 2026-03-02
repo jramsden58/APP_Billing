@@ -83,9 +83,9 @@ Public Function Submit() As Boolean
         ' Column A: Serial number formula
         ws.Cells(lRow, COL_SERIAL).Formula = "=Row()-1"
 
-        ' Column B: Anesthesiologist
+        ' Column B: Anesthesiologist (two-column list: column 0 = name)
         If .lstAnesth.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_ANESTH).Value = .lstAnesth.List(.lstAnesth.ListIndex)
+            ws.Cells(lRow, COL_ANESTH).Value = .lstAnesth.List(.lstAnesth.ListIndex, 0)
         End If
 
         ' Column C: Site
@@ -137,45 +137,45 @@ Public Function Submit() As Boolean
         ' Column K: Maximum IC Level
         ws.Cells(lRow, COL_MAXIC).Value = .txtMaxIC.Value
 
-        ' Column L: Consults
+        ' Column L: Consults (two-column list: column 0 = code)
         If .lstEval.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_CONSULT).Value = .lstEval.List(.lstEval.ListIndex)
+            ws.Cells(lRow, COL_CONSULT).Value = .lstEval.List(.lstEval.ListIndex, 0)
         End If
 
-        ' Columns M-O: Fee Modifiers
+        ' Columns M-O: Fee Modifiers (two-column list: column 0 = code)
         If .lstMod1.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MOD1).Value = .lstMod1.List(.lstMod1.ListIndex)
+            ws.Cells(lRow, COL_MOD1).Value = .lstMod1.List(.lstMod1.ListIndex, 0)
         End If
         If .lstMod2.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MOD2).Value = .lstMod2.List(.lstMod2.ListIndex)
+            ws.Cells(lRow, COL_MOD2).Value = .lstMod2.List(.lstMod2.ListIndex, 0)
         End If
         If .lstMod3.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MOD3).Value = .lstMod3.List(.lstMod3.ListIndex)
+            ws.Cells(lRow, COL_MOD3).Value = .lstMod3.List(.lstMod3.ListIndex, 0)
         End If
 
-        ' Column P: Resuscitation
+        ' Column P: Resuscitation (two-column list: column 0 = code)
         If .lstResus.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_RESUS).Value = .lstResus.List(.lstResus.ListIndex)
+            ws.Cells(lRow, COL_RESUS).Value = .lstResus.List(.lstResus.ListIndex, 0)
         End If
 
-        ' Column Q: Obstetrics
+        ' Column Q: Obstetrics (two-column list: column 0 = code)
         If .lstObs.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_OBS).Value = .lstObs.List(.lstObs.ListIndex)
+            ws.Cells(lRow, COL_OBS).Value = .lstObs.List(.lstObs.ListIndex, 0)
         End If
 
-        ' Column R: Acute Pain
+        ' Column R: Acute Pain (two-column list: column 0 = code)
         If .lstAcPain.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_ACUTEPAIN).Value = .lstAcPain.List(.lstAcPain.ListIndex)
+            ws.Cells(lRow, COL_ACUTEPAIN).Value = .lstAcPain.List(.lstAcPain.ListIndex, 0)
         End If
 
-        ' Column S: Diagnostic and Chronic Pain
+        ' Column S: Diagnostic and Chronic Pain (two-column list: column 0 = code)
         If .lstChPain.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_CHRONPAIN).Value = .lstChPain.List(.lstChPain.ListIndex)
+            ws.Cells(lRow, COL_CHRONPAIN).Value = .lstChPain.List(.lstChPain.ListIndex, 0)
         End If
 
-        ' Column T: Miscellaneous
+        ' Column T: Miscellaneous (two-column list: column 0 = code)
         If .lstMisc.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MISC).Value = .lstMisc.List(.lstMisc.ListIndex)
+            ws.Cells(lRow, COL_MISC).Value = .lstMisc.List(.lstMisc.ListIndex, 0)
         End If
 
         ' Columns U-Y: WCB fields
