@@ -72,16 +72,22 @@ End Sub
 Public Function Submit() As Boolean
     On Error GoTo ErrHandler
 
+    Dim sStep As String
+    sStep = "Opening DailyDatabase sheet"
+
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("DailyDatabase")
 
-    ' Find next empty row using column A (Serial) which is always written
+    ' Find next empty row using column B (Anesthesiologist) which is always written
+    sStep = "Finding next empty row"
     Dim lRow As Long
-    lRow = ws.Cells(ws.Rows.Count, COL_SERIAL).End(xlUp).Row + 1
+    lRow = ws.Cells(ws.Rows.Count, COL_ANESTH).End(xlUp).Row + 1
+
+    sStep = "Writing form data to row " & lRow
 
     With frmSaveData
-        ' Column A: Serial number formula
-        ws.Cells(lRow, COL_SERIAL).Formula = "=Row()-1"
+        ' Column A: Serial number (simple value, not formula)
+        ws.Cells(lRow, COL_SERIAL).Value = lRow - 1
 
         ' Column B: Anesthesiologist (two-column list: column 0 = name)
         If .lstAnesth.ListIndex >= 0 Then
@@ -194,6 +200,7 @@ Public Function Submit() As Boolean
         End If
 
         ' Column Z: Submitted By (Windows username, consistent with file naming)
+        sStep = "Writing Submitted By"
         ws.Cells(lRow, COL_SUBMBY).Value = GetCurrentUser()
 
         ' Column AA: Submitted On (timestamp - use nn for minutes, not MM)
@@ -204,9 +211,11 @@ Public Function Submit() As Boolean
     End With
 
     ' Persist workbook to disk so data survives form close / Excel exit
+    sStep = "Saving workbook"
     ThisWorkbook.Save
 
     ' Save to network share
+    sStep = "Syncing to network"
     If IsNetworkAvailable() Then
         Dim bSynced As Boolean
         bSynced = SaveToNetwork(ws, lRow)
@@ -229,7 +238,9 @@ Public Function Submit() As Boolean
 
 ErrHandler:
     Submit = False
-    MsgBox "Error saving data: " & Err.Description, vbCritical, "Save Error"
+    MsgBox "Error saving data at step: " & sStep & vbCrLf & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description & vbCrLf & _
+           "Source: " & Err.Source, vbCritical, "Save Error"
 End Function
 
 '------------------------------------------------------------------------------

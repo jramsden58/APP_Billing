@@ -122,13 +122,17 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' LoadMasterLists - Loads all list items from LookupLists into arrays
+' Uses On Error Resume Next throughout so a missing column won't crash the form
 '------------------------------------------------------------------------------
 Private Sub LoadMasterLists()
     On Error Resume Next
     Dim wsLookup As Worksheet
     Set wsLookup = ThisWorkbook.Sheets("LookupLists")
-    If wsLookup Is Nothing Then Exit Sub
-    On Error GoTo 0
+    If wsLookup Is Nothing Then
+        MsgBox "LookupLists sheet not found. List boxes will be empty.", _
+               vbExclamation, "Warning"
+        Exit Sub
+    End If
 
     ' Two-column list boxes: load code + description pairs
     m_aAnesth = LoadTwoColumnsToArray(wsLookup, 1, 2)      ' Columns A, B
@@ -142,6 +146,7 @@ Private Sub LoadMasterLists()
 
     ' Single-column list box
     m_aShftName = LoadColumnToArray(wsLookup, 5)            ' Column E
+    On Error GoTo 0
 End Sub
 
 '------------------------------------------------------------------------------
