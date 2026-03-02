@@ -318,6 +318,82 @@ Public Sub InitializeSettingsSheet()
 End Sub
 
 '------------------------------------------------------------------------------
+' MarkDateExported - Records that a date has been exported by the current user
+' Uses a hidden ExportLog sheet: Col A = Date, Col B = ExportedBy, Col C = ExportedOn
+'------------------------------------------------------------------------------
+Public Sub MarkDateExported(ByVal dtDate As Date)
+    On Error GoTo ErrHandler
+
+    Dim ws As Worksheet
+    Set ws = EnsureSheetExists("ExportLog")
+
+    ' Make the sheet VeryHidden
+    If ws.Visible <> xlSheetVeryHidden Then
+        ws.Visible = xlSheetVeryHidden
+    End If
+
+    ' Add headers if empty
+    If Len(ws.Cells(1, 1).Value) = 0 Then
+        ws.Cells(1, 1).Value = "Date"
+        ws.Cells(1, 2).Value = "ExportedBy"
+        ws.Cells(1, 3).Value = "ExportedOn"
+    End If
+
+    ' Add the export record
+    Dim lRow As Long
+    lRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+
+    ws.Cells(lRow, 1).Value = Format(dtDate, "DD/MM/YYYY")
+    ws.Cells(lRow, 2).Value = GetCurrentUser()
+    ws.Cells(lRow, 3).Value = FormatTimestamp(Now)
+
+    Exit Sub
+ErrHandler:
+    ' Silently fail - export still succeeds even if logging fails
+End Sub
+
+'------------------------------------------------------------------------------
+' IsDateExported - Checks if a date has been exported by the current user
+'------------------------------------------------------------------------------
+Public Function IsDateExported(ByVal dtDate As Date) As Boolean
+    On Error GoTo ErrHandler
+
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets("ExportLog")
+    On Error GoTo ErrHandler
+
+    If ws Is Nothing Then
+        IsDateExported = False
+        Exit Function
+    End If
+
+    Dim sDateStr As String
+    sDateStr = Format(dtDate, "DD/MM/YYYY")
+
+    Dim sUser As String
+    sUser = GetCurrentUser()
+
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+
+    Dim i As Long
+    For i = 2 To lastRow
+        If CStr(ws.Cells(i, 1).Value) = sDateStr And _
+           CStr(ws.Cells(i, 2).Value) = sUser Then
+            IsDateExported = True
+            Exit Function
+        End If
+    Next i
+
+    IsDateExported = False
+    Exit Function
+
+ErrHandler:
+    IsDateExported = False
+End Function
+
+'------------------------------------------------------------------------------
 ' ShowConfigDialog - Prompts user to configure the network path
 '------------------------------------------------------------------------------
 Public Sub ShowConfigDialog()

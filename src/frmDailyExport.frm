@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} frmDailyExport
    Caption         =   "APP Billing - Daily Data Export"
-   ClientHeight    =   3500
+   ClientHeight    =   4200
    ClientLeft      =   120
    ClientTop       =   465
    ClientWidth     =   5500
@@ -18,6 +18,7 @@ Attribute VB_Exposed = False
 ' APP Billing System
 '
 ' Allows users to export all users' daily data into a single Excel file.
+' After export, the date is locked - no further edits by the user for that date.
 ' Available to all users (not superuser-restricted).
 '
 ' FORM CONTROLS NEEDED (create in VBA Editor form designer):
@@ -28,6 +29,7 @@ Attribute VB_Exposed = False
 '   cmdExit      - CommandButton "Exit"
 '   lblStatus    - Label for status messages
 '   chkOpenFile  - CheckBox "Open file after export"
+'   chkPDF       - CheckBox "Also generate consolidated PDF"
 '==============================================================================
 Option Explicit
 
@@ -38,6 +40,9 @@ Private Sub UserForm_Initialize()
     txtExportDate.Value = Format(Date, "DD/MM/YYYY")
     lblStatus.Caption = ""
     chkOpenFile.Value = True
+    On Error Resume Next
+    chkPDF.Value = False
+    On Error GoTo 0
 End Sub
 
 '------------------------------------------------------------------------------
@@ -55,6 +60,15 @@ Private Sub cmdExport_Click()
     Dim dtDate As Date
     dtDate = ParseDate(txtExportDate.Value)
 
+    ' Check if already exported
+    If IsDateExported(dtDate) Then
+        If MsgBox("This date has already been exported." & vbCrLf & _
+                  "Do you want to export again?", _
+                  vbYesNo + vbQuestion, "Already Exported") = vbNo Then
+            Exit Sub
+        End If
+    End If
+
     lblStatus.Caption = "Exporting data for " & Format(dtDate, "DD/MM/YYYY") & "..."
     DoEvents
 
@@ -62,13 +76,36 @@ Private Sub cmdExport_Click()
     sResult = ConsolidateDailyData(dtDate)
 
     If Len(sResult) > 0 Then
+        ' Mark the date as exported (locks further edits for this user/date)
+        MarkDateExported dtDate
+
         lblStatus.Caption = "Export complete: " & sResult
+
+        ' Generate consolidated PDF if requested
+        Dim bPDF As Boolean
+        On Error Resume Next
+        bPDF = chkPDF.Value
+        On Error GoTo ErrHandler
+
+        If bPDF Then
+            lblStatus.Caption = "Generating consolidated PDF..."
+            DoEvents
+            Dim sPDFResult As String
+            sPDFResult = GenerateConsolidatedPDF(dtDate)
+            If Len(sPDFResult) > 0 Then
+                lblStatus.Caption = "Export and PDF complete."
+            Else
+                lblStatus.Caption = "Excel export complete. PDF generation had no data."
+            End If
+        End If
 
         If chkOpenFile.Value Then
             Workbooks.Open sResult
         Else
             MsgBox "Export complete." & vbCrLf & vbCrLf & _
-                   "File saved to:" & vbCrLf & sResult, _
+                   "File saved to:" & vbCrLf & sResult & _
+                   IIf(bPDF And Len(sPDFResult) > 0, vbCrLf & vbCrLf & _
+                   "PDF saved to:" & vbCrLf & sPDFResult, ""), _
                    vbInformation, "Export Complete"
         End If
     Else

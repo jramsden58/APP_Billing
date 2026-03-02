@@ -8,13 +8,6 @@ Attribute VB_Name = "Module1"
 '==============================================================================
 Option Explicit
 
-' Form positioning variables
-Dim iWidth As Integer
-Dim iHeight As Integer
-Dim iLeft As Integer
-Dim iTop As Integer
-Dim bState As Boolean
-
 '------------------------------------------------------------------------------
 ' Reset - Resets the frmSaveData form to default values
 '------------------------------------------------------------------------------
@@ -22,8 +15,8 @@ Public Sub Reset()
     On Error GoTo ErrHandler
 
     With frmSaveData
-        ' Set default anesthesiologist
-        .lstAnesth.ListIndex = 0
+        ' Clear anesthesiologist list (start empty, filter-as-you-type)
+        .lstAnesth.Clear
 
         ' Site defaults
         .optRCH.Value = True
@@ -32,8 +25,8 @@ Public Sub Reset()
         ' Date placeholder
         .txtDteOfSer.Value = "DD/MM/YYYY"
 
-        ' Shift defaults
-        .lstShftName.ListIndex = -1
+        ' Clear shift name list (start empty, filter-as-you-type)
+        .lstShftName.Clear
 
         ' On Call
         .chxOnCall.Value = False
@@ -48,16 +41,16 @@ Public Sub Reset()
         .txtProcFinTime.Value = "HHMMhr"
         .txtMaxIC.Value = ""
 
-        ' Fee item lists - clear selections (blank on first entry)
-        .lstEval.ListIndex = -1
-        .lstMod1.ListIndex = -1
-        .lstMod2.ListIndex = -1
-        .lstMod3.ListIndex = -1
-        .lstResus.ListIndex = -1
-        .lstObs.ListIndex = -1
-        .lstAcPain.ListIndex = -1
-        .lstChPain.ListIndex = -1
-        .lstMisc.ListIndex = -1
+        ' Fee item lists - clear all items (start empty, filter-as-you-type)
+        .lstEval.Clear
+        .lstMod1.Clear
+        .lstMod2.Clear
+        .lstMod3.Clear
+        .lstResus.Clear
+        .lstObs.Clear
+        .lstAcPain.Clear
+        .lstChPain.Clear
+        .lstMisc.Clear
 
         ' WCB fields
         .txtWCBNum.Value = ""
@@ -96,9 +89,9 @@ Public Function Submit() As Boolean
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("DailyDatabase")
 
-    ' Find next empty row (use End(xlUp) to handle gaps from deleted rows)
+    ' Find next empty row using column A (Serial) which is always written
     Dim lRow As Long
-    lRow = ws.Cells(ws.Rows.Count, COL_ANESTH).End(xlUp).Row + 1
+    lRow = ws.Cells(ws.Rows.Count, COL_SERIAL).End(xlUp).Row + 1
 
     With frmSaveData
         ' Column A: Serial number formula
@@ -106,7 +99,7 @@ Public Function Submit() As Boolean
 
         ' Column B: Anesthesiologist
         If .lstAnesth.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_ANESTH).Value = .lstAnesth.Value
+            ws.Cells(lRow, COL_ANESTH).Value = .lstAnesth.List(.lstAnesth.ListIndex)
         End If
 
         ' Column C: Site
@@ -125,7 +118,7 @@ Public Function Submit() As Boolean
 
         ' Column E: Shift Name
         If .lstShftName.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_SHIFT).Value = .lstShftName.Value
+            ws.Cells(lRow, COL_SHIFT).Value = .lstShftName.List(.lstShftName.ListIndex)
         End If
 
         ' Column F: On Call (store as "Yes"/"No" string for consistency)
@@ -160,43 +153,43 @@ Public Function Submit() As Boolean
 
         ' Column L: Consults
         If .lstEval.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_CONSULT).Value = .lstEval.Value
+            ws.Cells(lRow, COL_CONSULT).Value = .lstEval.List(.lstEval.ListIndex)
         End If
 
         ' Columns M-O: Fee Modifiers
         If .lstMod1.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MOD1).Value = .lstMod1.Value
+            ws.Cells(lRow, COL_MOD1).Value = .lstMod1.List(.lstMod1.ListIndex)
         End If
         If .lstMod2.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MOD2).Value = .lstMod2.Value
+            ws.Cells(lRow, COL_MOD2).Value = .lstMod2.List(.lstMod2.ListIndex)
         End If
         If .lstMod3.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MOD3).Value = .lstMod3.Value
+            ws.Cells(lRow, COL_MOD3).Value = .lstMod3.List(.lstMod3.ListIndex)
         End If
 
         ' Column P: Resuscitation
         If .lstResus.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_RESUS).Value = .lstResus.Value
+            ws.Cells(lRow, COL_RESUS).Value = .lstResus.List(.lstResus.ListIndex)
         End If
 
         ' Column Q: Obstetrics
         If .lstObs.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_OBS).Value = .lstObs.Value
+            ws.Cells(lRow, COL_OBS).Value = .lstObs.List(.lstObs.ListIndex)
         End If
 
         ' Column R: Acute Pain
         If .lstAcPain.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_ACUTEPAIN).Value = .lstAcPain.Value
+            ws.Cells(lRow, COL_ACUTEPAIN).Value = .lstAcPain.List(.lstAcPain.ListIndex)
         End If
 
         ' Column S: Diagnostic and Chronic Pain
         If .lstChPain.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_CHRONPAIN).Value = .lstChPain.Value
+            ws.Cells(lRow, COL_CHRONPAIN).Value = .lstChPain.List(.lstChPain.ListIndex)
         End If
 
         ' Column T: Miscellaneous
         If .lstMisc.ListIndex >= 0 Then
-            ws.Cells(lRow, COL_MISC).Value = .lstMisc.Value
+            ws.Cells(lRow, COL_MISC).Value = .lstMisc.List(.lstMisc.ListIndex)
         End If
 
         ' Columns U-Y: WCB fields
@@ -223,6 +216,9 @@ Public Function Submit() As Boolean
         ' Column AB: Sync Status (initially empty, set by SaveToNetwork)
         ws.Cells(lRow, COL_SYNCSTATUS).Value = ""
     End With
+
+    ' Persist workbook to disk so data survives form close / Excel exit
+    ThisWorkbook.Save
 
     ' Save to network share
     If IsNetworkAvailable() Then
@@ -358,6 +354,16 @@ Public Sub InitialSetup()
 
     ' Ensure SearchData sheet exists for search functionality
     EnsureSheetExists "SearchData"
+
+    ' Ensure ExportLog sheet exists for tracking exported dates
+    Dim wsExport As Worksheet
+    Set wsExport = EnsureSheetExists("ExportLog")
+    If Len(wsExport.Cells(1, 1).Value) = 0 Then
+        wsExport.Cells(1, 1).Value = "Date"
+        wsExport.Cells(1, 2).Value = "ExportedBy"
+        wsExport.Cells(1, 3).Value = "ExportedOn"
+    End If
+    wsExport.Visible = xlSheetVeryHidden
 
     ' Add Sync Status header to DailyDatabase if missing
     Dim ws As Worksheet

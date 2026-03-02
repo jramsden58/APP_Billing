@@ -122,6 +122,137 @@ ErrHandler:
 End Function
 
 '------------------------------------------------------------------------------
+' GenerateConsolidatedPDF - Generates a PDF for all users on a given date
+'
+' Reads all user files for the date, groups by anesthesiologist,
+' and generates multi-page PDFs using the ORReportingForm template.
+'
+' Returns: Path to saved PDF, or empty string on failure
+'------------------------------------------------------------------------------
+Public Function GenerateConsolidatedPDF(ByVal dtDate As Date) As String
+    On Error GoTo ErrHandler
+
+    ' Read all user data for the date
+    Dim colData As Collection
+    Set colData = ReadAllUsersDailyData(dtDate)
+
+    If colData.Count = 0 Then
+        GenerateConsolidatedPDF = ""
+        Exit Function
+    End If
+
+    ' Flatten all data into a single collection of rows, grouped by anesthesiologist
+    ' Use a dictionary-like approach: collect unique anesthesiologists and their data
+    Dim colAllRows As New Collection
+    Dim vDataSet As Variant
+    For Each vDataSet In colData
+        If IsArray(vDataSet) Then
+            Dim lRows As Long
+            On Error Resume Next
+            lRows = UBound(vDataSet, 1)
+            On Error GoTo ErrHandler
+
+            Dim r As Long
+            For r = 1 To lRows
+                ' Store each row as an array
+                Dim vRow() As Variant
+                ReDim vRow(1 To NUM_COLUMNS)
+                Dim c As Long
+                For c = 1 To NUM_COLUMNS
+                    vRow(c) = vDataSet(r, c)
+                Next c
+                colAllRows.Add vRow
+            Next r
+        End If
+    Next vDataSet
+
+    If colAllRows.Count = 0 Then
+        GenerateConsolidatedPDF = ""
+        Exit Function
+    End If
+
+    ' Build a combined 2D array sorted by anesthesiologist name
+    Dim lTotal As Long
+    lTotal = colAllRows.Count
+
+    Dim vAll() As Variant
+    ReDim vAll(1 To lTotal, 1 To NUM_COLUMNS)
+
+    Dim idx As Long
+    For idx = 1 To lTotal
+        Dim vItem As Variant
+        vItem = colAllRows(idx)
+        For c = 1 To NUM_COLUMNS
+            vAll(idx, c) = vItem(c)
+        Next c
+    Next idx
+
+    ' Simple bubble sort by anesthesiologist name (column 2)
+    Dim i As Long, j As Long
+    Dim vTemp As Variant
+    For i = 1 To lTotal - 1
+        For j = i + 1 To lTotal
+            If CStr(vAll(i, COL_ANESTH)) > CStr(vAll(j, COL_ANESTH)) Then
+                ' Swap rows
+                For c = 1 To NUM_COLUMNS
+                    vTemp = vAll(i, c)
+                    vAll(i, c) = vAll(j, c)
+                    vAll(j, c) = vTemp
+                Next c
+            End If
+        Next j
+    Next i
+
+    ' Generate PDF using first record's info for header
+    PopulateORForm vAll, "All Anesthesiologists", "", dtDate
+
+    ' Set header to show it's a consolidated report
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("ORReportingForm")
+    ws.Range(FORM_NAME_CELL).Value = "CONSOLIDATED - All Users"
+    ws.Range(FORM_SITE_CELL).Value = ""
+    ws.Range(FORM_SHIFT_CELL).Value = ""
+
+    ' Determine PDF path
+    Dim sPDFPath As String
+    If IsNetworkAvailable() Then
+        sPDFPath = GetNetworkPath() & FOLDER_PDF_REPORTS & "\" & _
+                   "AllUsers_" & Format(dtDate, "YYYYMMDD") & ".pdf"
+        CreateFolderIfNotExists GetNetworkPath() & FOLDER_PDF_REPORTS
+    Else
+        sPDFPath = ThisWorkbook.Path & "\AllUsers_" & Format(dtDate, "YYYYMMDD") & ".pdf"
+    End If
+
+    ExportToPDF sPDFPath
+
+    ' Generate additional pages if more than 6 records
+    Dim lPages As Long
+    lPages = Int((lTotal - 1) / 6) + 1
+
+    If lTotal > 6 Then
+        Dim lPage As Long
+        For lPage = 2 To lPages
+            Dim lStartIdx As Long
+            lStartIdx = ((lPage - 1) * 6) + 1
+
+            PopulateORFormPage vAll, "CONSOLIDATED - All Users", "", dtDate, lStartIdx
+            ws.Range(FORM_SITE_CELL).Value = ""
+            ws.Range(FORM_SHIFT_CELL).Value = ""
+
+            Dim sPagePath As String
+            sPagePath = Replace(sPDFPath, ".pdf", "_Page" & lPage & ".pdf")
+            ExportToPDF sPagePath
+        Next lPage
+    End If
+
+    GenerateConsolidatedPDF = sPDFPath
+    Exit Function
+
+ErrHandler:
+    GenerateConsolidatedPDF = ""
+End Function
+
+'------------------------------------------------------------------------------
 ' GetUserData - Gets data for a specific user and date
 ' Tries network share first, falls back to local DailyDatabase
 '------------------------------------------------------------------------------
