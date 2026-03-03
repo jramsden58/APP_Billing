@@ -563,7 +563,10 @@ Private Sub cmdSave_Click()
         End If
 
         Call Reset
-        MsgBox "Record saved successfully.", vbInformation, "Saved"
+        MsgBox "Record saved successfully to row " & g_lLastSavedRow & "." & vbCrLf & _
+               "Sheet: DailyDatabase" & vbCrLf & _
+               "File: " & ThisWorkbook.FullName, _
+               vbInformation, "Saved"
     End If
     Exit Sub
 

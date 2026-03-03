@@ -8,6 +8,9 @@ Attribute VB_Name = "Module1"
 '==============================================================================
 Option Explicit
 
+' Public variable to pass last saved row number from Submit to callers
+Public g_lLastSavedRow As Long
+
 '------------------------------------------------------------------------------
 ' Reset - Resets the frmSaveData form to default values
 '------------------------------------------------------------------------------
@@ -68,6 +71,7 @@ End Sub
 '------------------------------------------------------------------------------
 ' Submit - Saves form data to DailyDatabase and network share
 ' Returns True on success, False on failure
+' Sets public g_lLastSavedRow so the caller can report the row number
 '------------------------------------------------------------------------------
 Public Function Submit() As Boolean
     On Error GoTo ErrHandler
@@ -210,9 +214,39 @@ Public Function Submit() As Boolean
         ws.Cells(lRow, COL_SYNCSTATUS).Value = ""
     End With
 
+    ' VERIFY data was actually written before saving
+    sStep = "Verifying data write"
+    Dim sVerify As String
+    sVerify = CStr(ws.Cells(lRow, COL_ANESTH).Value)
+    If Len(sVerify) = 0 Then
+        MsgBox "WARNING: Data write verification failed!" & vbCrLf & _
+               "Row " & lRow & ", Column B (Anesthesiologist) is empty after writing." & vbCrLf & _
+               "The workbook file is: " & ThisWorkbook.FullName & vbCrLf & _
+               "The sheet name is: " & ws.Name, _
+               vbCritical, "Write Verification Failed"
+        Submit = False
+        Exit Function
+    End If
+
     ' Persist workbook to disk so data survives form close / Excel exit
     sStep = "Saving workbook"
     ThisWorkbook.Save
+
+    ' Verify data survived the save (catches Workbook_BeforeSave interference)
+    sStep = "Post-save verification"
+    Dim sPostSave As String
+    sPostSave = CStr(ws.Cells(lRow, COL_ANESTH).Value)
+    If Len(sPostSave) = 0 Then
+        MsgBox "WARNING: Data disappeared after ThisWorkbook.Save!" & vbCrLf & _
+               "Something (possibly a Workbook_BeforeSave event) is clearing data." & vbCrLf & _
+               "Check the ThisWorkbook module in VBA Editor (Alt+F11) for event code.", _
+               vbCritical, "Post-Save Verification Failed"
+        Submit = False
+        Exit Function
+    End If
+
+    ' Store the row number for the success message
+    g_lLastSavedRow = lRow
 
     ' Save to network share
     sStep = "Syncing to network"
