@@ -69,6 +69,9 @@ Option Explicit
 
 Private m_colFiles As Collection
 
+' Flag to prevent recursive formatting in date Change events
+Private m_bFormatting As Boolean
+
 '------------------------------------------------------------------------------
 ' Form Initialize - Authenticate and set up UI
 '------------------------------------------------------------------------------
@@ -591,3 +594,152 @@ End Sub
 Private Function ParseDate(ByVal sDate As String) As Date
     ParseDate = ParseDateDMY(sDate)
 End Function
+
+'==============================================================================
+' DATE FIELD AUTO-FORMATTING (DD/MM/YYYY)
+' Applies to: txtBrowseDate, txtConsDate, txtStartDate, txtEndDate,
+'             txtSearchDateFrom, txtSearchDateTo
+' Enter: clears placeholder; Exit: restores it; KeyPress: digits only;
+' Change: auto-inserts "/" separators via FormatDateFieldSU
+'==============================================================================
+
+'--- Browse Date ---
+Private Sub txtBrowseDate_Enter()
+    If txtBrowseDate.Value = "DD/MM/YYYY" Then txtBrowseDate.Value = ""
+End Sub
+Private Sub txtBrowseDate_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtBrowseDate.Value)) = 0 Then txtBrowseDate.Value = "DD/MM/YYYY"
+End Sub
+Private Sub txtBrowseDate_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
+End Sub
+Private Sub txtBrowseDate_Change()
+    If m_bFormatting Then Exit Sub
+    If txtBrowseDate.Value = "DD/MM/YYYY" Or Len(txtBrowseDate.Value) = 0 Then Exit Sub
+    FormatDateFieldSU txtBrowseDate
+End Sub
+
+'--- Consolidate Day Date ---
+Private Sub txtConsDate_Enter()
+    If txtConsDate.Value = "DD/MM/YYYY" Then txtConsDate.Value = ""
+End Sub
+Private Sub txtConsDate_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtConsDate.Value)) = 0 Then txtConsDate.Value = "DD/MM/YYYY"
+End Sub
+Private Sub txtConsDate_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
+End Sub
+Private Sub txtConsDate_Change()
+    If m_bFormatting Then Exit Sub
+    If txtConsDate.Value = "DD/MM/YYYY" Or Len(txtConsDate.Value) = 0 Then Exit Sub
+    FormatDateFieldSU txtConsDate
+End Sub
+
+'--- Range Start Date ---
+Private Sub txtStartDate_Enter()
+    If txtStartDate.Value = "DD/MM/YYYY" Then txtStartDate.Value = ""
+End Sub
+Private Sub txtStartDate_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtStartDate.Value)) = 0 Then txtStartDate.Value = "DD/MM/YYYY"
+End Sub
+Private Sub txtStartDate_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
+End Sub
+Private Sub txtStartDate_Change()
+    If m_bFormatting Then Exit Sub
+    If txtStartDate.Value = "DD/MM/YYYY" Or Len(txtStartDate.Value) = 0 Then Exit Sub
+    FormatDateFieldSU txtStartDate
+End Sub
+
+'--- Range End Date ---
+Private Sub txtEndDate_Enter()
+    If txtEndDate.Value = "DD/MM/YYYY" Then txtEndDate.Value = ""
+End Sub
+Private Sub txtEndDate_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtEndDate.Value)) = 0 Then txtEndDate.Value = "DD/MM/YYYY"
+End Sub
+Private Sub txtEndDate_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
+End Sub
+Private Sub txtEndDate_Change()
+    If m_bFormatting Then Exit Sub
+    If txtEndDate.Value = "DD/MM/YYYY" Or Len(txtEndDate.Value) = 0 Then Exit Sub
+    FormatDateFieldSU txtEndDate
+End Sub
+
+'--- Search Date From ---
+Private Sub txtSearchDateFrom_Enter()
+    If txtSearchDateFrom.Value = "DD/MM/YYYY" Then txtSearchDateFrom.Value = ""
+End Sub
+Private Sub txtSearchDateFrom_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtSearchDateFrom.Value)) = 0 Then txtSearchDateFrom.Value = "DD/MM/YYYY"
+End Sub
+Private Sub txtSearchDateFrom_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
+End Sub
+Private Sub txtSearchDateFrom_Change()
+    If m_bFormatting Then Exit Sub
+    If txtSearchDateFrom.Value = "DD/MM/YYYY" Or Len(txtSearchDateFrom.Value) = 0 Then Exit Sub
+    FormatDateFieldSU txtSearchDateFrom
+End Sub
+
+'--- Search Date To ---
+Private Sub txtSearchDateTo_Enter()
+    If txtSearchDateTo.Value = "DD/MM/YYYY" Then txtSearchDateTo.Value = ""
+End Sub
+Private Sub txtSearchDateTo_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtSearchDateTo.Value)) = 0 Then txtSearchDateTo.Value = "DD/MM/YYYY"
+End Sub
+Private Sub txtSearchDateTo_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
+End Sub
+Private Sub txtSearchDateTo_Change()
+    If m_bFormatting Then Exit Sub
+    If txtSearchDateTo.Value = "DD/MM/YYYY" Or Len(txtSearchDateTo.Value) = 0 Then Exit Sub
+    FormatDateFieldSU txtSearchDateTo
+End Sub
+
+'==============================================================================
+' DATE FORMAT HELPERS (SuperUser form private copies)
+'==============================================================================
+
+'------------------------------------------------------------------------------
+' ExtractDigitsSU - Returns only digit characters from a string
+'------------------------------------------------------------------------------
+Private Function ExtractDigitsSU(ByVal s As String) As String
+    Dim i As Long
+    Dim sResult As String
+    For i = 1 To Len(s)
+        If Mid(s, i, 1) >= "0" And Mid(s, i, 1) <= "9" Then
+            sResult = sResult & Mid(s, i, 1)
+        End If
+    Next i
+    ExtractDigitsSU = sResult
+End Function
+
+'------------------------------------------------------------------------------
+' FormatDateFieldSU - Auto-inserts "/" separators for DD/MM/YYYY as user types
+'------------------------------------------------------------------------------
+Private Sub FormatDateFieldSU(ByRef ctl As MSForms.TextBox)
+    m_bFormatting = True
+
+    Dim sDigits As String
+    sDigits = ExtractDigitsSU(ctl.Value)
+    If Len(sDigits) > 8 Then sDigits = Left(sDigits, 8)
+
+    Dim sFormatted As String
+    If Len(sDigits) <= 2 Then
+        sFormatted = sDigits
+    ElseIf Len(sDigits) <= 4 Then
+        sFormatted = Left(sDigits, 2) & "/" & Mid(sDigits, 3)
+    Else
+        sFormatted = Left(sDigits, 2) & "/" & Mid(sDigits, 3, 2) & "/" & Mid(sDigits, 5)
+    End If
+
+    If sFormatted <> ctl.Value Then
+        ctl.Value = sFormatted
+        ctl.SelStart = Len(sFormatted)
+    End If
+
+    m_bFormatting = False
+End Sub

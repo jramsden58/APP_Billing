@@ -408,8 +408,11 @@ Public Sub ShowConfigDialog()
     If Len(sPath) > 0 Then
         SetNetworkPath sPath
 
+        ' Always attempt to create the folder structure first.
+        ' This handles new local paths (e.g. C:\...\test) that don't exist yet.
+        EnsureNetworkFolders
+
         If IsNetworkAvailable() Then
-            EnsureNetworkFolders
             MsgBox "Network path configured successfully." & vbCrLf & _
                    "Folder structure verified.", vbInformation, "Configuration"
         Else

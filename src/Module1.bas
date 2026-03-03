@@ -324,6 +324,18 @@ Public Sub Show_Form4()
 End Sub
 
 '------------------------------------------------------------------------------
+' Show_DailyData / Show_DailyExport - Opens the Daily Export form
+' Aliases called directly by the "Export Daily Data" button on the Home sheet
+'------------------------------------------------------------------------------
+Public Sub Show_DailyData()
+    frmDailyExport.Show
+End Sub
+
+Public Sub Show_DailyExport()
+    frmDailyExport.Show
+End Sub
+
+'------------------------------------------------------------------------------
 ' SyncNow - Syncs all pending records to the network
 '------------------------------------------------------------------------------
 Public Sub SyncNow()
@@ -389,11 +401,12 @@ Public Sub InitialSetup()
     ' Prompt for network path
     ShowConfigDialog
 
-    ' Create folder structure
-    If IsNetworkAvailable() Then
-        EnsureNetworkFolders
+    ' Always create folder structure first — this also creates the base path
+    ' if it is a new local folder (e.g. C:\...\test that doesn't exist yet)
+    EnsureNetworkFolders
 
-        ' Create SuperUsers file if it doesn't exist
+    ' Create SuperUsers file if the path is now accessible
+    If IsNetworkAvailable() Then
         Dim sPath As String
         sPath = GetNetworkPath() & FOLDER_CONFIG & "\SuperUsers.xlsx"
         If Dir(sPath) = "" Then
