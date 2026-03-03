@@ -83,7 +83,7 @@ Private Sub UserForm_Initialize()
     lstAcPain.MatchEntry = fmMatchEntryNone
     lstChPain.MatchEntry = fmMatchEntryNone
     lstMisc.MatchEntry = fmMatchEntryNone
-    lstShftName.MatchEntry = fmMatchEntryNone
+    lstShftName.MatchEntry = fmMatchEntryComplete
     On Error GoTo 0
 
     ' Configure two-column list boxes
@@ -428,9 +428,9 @@ Private Sub lstAnesth_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
     HandleListKeyPress2Col lstAnesth, m_aAnesth, m_sSearchAnesth, KeyAscii
 End Sub
 
-Private Sub lstShftName_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    HandleListKeyPress lstShftName, m_aShftName, m_sSearchShftName, KeyAscii
-End Sub
+' lstShftName uses standard scroll-and-select behavior (no filter-as-you-type).
+' The user scrolls through the list; whichever item is selected when Tab moves
+' focus to the next control is the item that gets saved.
 
 Private Sub lstEval_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
     HandleListKeyPress2Col lstEval, m_aEval, m_sSearchEval, KeyAscii
@@ -1233,19 +1233,20 @@ Private Function ValidateForm() As Boolean
     Dim bValid As Boolean
     bValid = True
 
-    ' Reset all backgrounds
+    ' Reset all backgrounds for required fields
     txtDteOfSer.BackColor = &HFFFFFF
     txtSurgProcCode.BackColor = &HFFFFFF
     txtProcStrtTime.BackColor = &HFFFFFF
     txtProcFinTime.BackColor = &HFFFFFF
+    txtMaxIC.BackColor = &HFFFFFF
 
-    ' Check anesthesiologist selected
+    ' Required: Anesthesiologist
     If lstAnesth.ListIndex < 0 Then
         MsgBox "Please select an anesthesiologist.", vbExclamation, "Validation"
         bValid = False
     End If
 
-    ' Check date is valid DD/MM/YYYY
+    ' Required: Date of Service (valid DD/MM/YYYY)
     Dim sDate As String
     sDate = txtDteOfSer.Value
     If sDate = "DD/MM/YYYY" Or Len(sDate) = 0 Then
@@ -1257,13 +1258,37 @@ Private Function ValidateForm() As Boolean
         bValid = False
     End If
 
-    ' Check procedure code
+    ' Required: Site - one of optERH or optRCH must be selected
+    If Not optRCH.Value And Not optERH.Value Then
+        MsgBox "Please select a site (RCH or ERH).", vbExclamation, "Validation"
+        bValid = False
+    End If
+
+    ' Required: Shift Type - one of optOR or optOutOfOR must be selected
+    If Not optOR.Value And Not optOutOfOR.Value Then
+        MsgBox "Please select a shift type (OR or Out of OR).", vbExclamation, "Validation"
+        bValid = False
+    End If
+
+    ' Required: Shift Name
+    If lstShftName.ListIndex < 0 Then
+        MsgBox "Please select a shift name.", vbExclamation, "Validation"
+        bValid = False
+    End If
+
+    ' Required: Surgical Procedure Code
     If Len(txtSurgProcCode.Value) = 0 Then
         txtSurgProcCode.BackColor = &HC0C0FF
         bValid = False
     End If
 
-    ' Check start time is valid HHMMhr (24-hour)
+    ' Required: Maximum IC Level
+    If Len(Trim(txtMaxIC.Value)) = 0 Then
+        txtMaxIC.BackColor = &HC0C0FF
+        bValid = False
+    End If
+
+    ' Required: Procedure Start Time (valid HHMMhr 24-hour)
     Dim sStart As String
     sStart = txtProcStrtTime.Value
     If sStart = "HHMMhr" Or Len(sStart) = 0 Then
@@ -1276,7 +1301,7 @@ Private Function ValidateForm() As Boolean
         bValid = False
     End If
 
-    ' Check finish time is valid HHMMhr (24-hour)
+    ' Required: Procedure Finish Time (valid HHMMhr 24-hour)
     Dim sFinish As String
     sFinish = txtProcFinTime.Value
     If sFinish = "HHMMhr" Or Len(sFinish) = 0 Then
@@ -1289,7 +1314,7 @@ Private Function ValidateForm() As Boolean
         bValid = False
     End If
 
-    ' Check WCB date if entered
+    ' Optional validation: WCB date format if entered
     Dim sWCBDate As String
     sWCBDate = txtWCBDteofInj.Value
     If sWCBDate <> "DD/MM/YYYY" And Len(sWCBDate) > 0 Then

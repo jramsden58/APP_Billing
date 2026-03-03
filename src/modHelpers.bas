@@ -17,14 +17,6 @@ Public Sub UnloadSuperUser()
 End Sub
 
 '------------------------------------------------------------------------------
-' Show_DailyExport - Opens the Daily Export form
-' Can be assigned to a button on the Home sheet
-'------------------------------------------------------------------------------
-Public Sub Show_DailyExport()
-    frmDailyExport.Show
-End Sub
-
-'------------------------------------------------------------------------------
 ' ParseDateDMY - Parses a DD/MM/YYYY date string regardless of system locale
 '
 ' Always interprets as DD/MM/YYYY. Never uses IsDate/CDate which depend on
@@ -132,6 +124,14 @@ Public Function IsValidTime24(ByVal sTime As String) As Boolean
         End If
         iHour = CInt(Left(sDigits, 2))
         iMin = CInt(Right(sDigits, 2))
+        IsValidTime24 = (iHour >= 0 And iHour <= 23 And iMin >= 0 And iMin <= 59)
+        Exit Function
+    End If
+
+    ' Bare 4-digit format (e.g., "1000")
+    If Len(sTime) = 4 And IsNumeric(sTime) Then
+        iHour = CInt(Left(sTime, 2))
+        iMin = CInt(Right(sTime, 2))
         IsValidTime24 = (iHour >= 0 And iHour <= 23 And iMin >= 0 And iMin <= 59)
         Exit Function
     End If

@@ -307,7 +307,13 @@ End Sub
 ' Show_Form3 - Opens the Superuser Access form
 '------------------------------------------------------------------------------
 Public Sub Show_Form3()
+    On Error GoTo ErrHandler
     frmSuperUser.Show
+    Exit Sub
+ErrHandler:
+    MsgBox "Error opening SuperUser form:" & vbCrLf & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description & vbCrLf & _
+           "Source: " & Err.Source, vbCritical, "SuperUser Form Error"
 End Sub
 
 '------------------------------------------------------------------------------

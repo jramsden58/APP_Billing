@@ -73,6 +73,8 @@ Private m_colFiles As Collection
 ' Form Initialize - Authenticate and set up UI
 '------------------------------------------------------------------------------
 Private Sub UserForm_Initialize()
+    On Error GoTo ErrHandler
+
     ' Disable all controls before authentication to prevent bypass
     Dim ctrl As Control
     For Each ctrl In Me.Controls
@@ -82,9 +84,8 @@ Private Sub UserForm_Initialize()
     Next ctrl
 
     ' Attempt authentication
+    On Error GoTo ErrHandler
     If Not AuthenticateSuperUser() Then
-        MsgBox "Authentication failed. Superuser access denied.", _
-               vbCritical, "Access Denied"
         ' Defer unload to after Initialize completes
         Application.OnTime Now, "UnloadSuperUser"
         Exit Sub
@@ -97,6 +98,10 @@ Private Sub UserForm_Initialize()
         On Error GoTo 0
     Next ctrl
 
+    ' Set up controls - all wrapped in On Error Resume Next
+    ' so missing controls won't crash the form
+    On Error Resume Next
+
     ' Set up user display
     lblUser.Caption = "User: " & Application.UserName & " | Access: " & GetAccessLevel()
 
@@ -107,7 +112,6 @@ Private Sub UserForm_Initialize()
     txtEndDate.Value = Format(Date, "DD/MM/YYYY")
 
     ' Set up search controls
-    On Error Resume Next
     txtSearchTerm.Value = ""
     txtSearchDateFrom.Value = Format(Date - 30, "DD/MM/YYYY")
     txtSearchDateTo.Value = Format(Date, "DD/MM/YYYY")
@@ -142,13 +146,23 @@ Private Sub UserForm_Initialize()
     cboSearchField.AddItem "Submitted By"
     cboSearchField.AddItem "Submitted On"
     cboSearchField.ListIndex = 0 ' Default to "All Fields"
-    On Error GoTo 0
 
     ' Show/hide admin features based on access level
     fraAdmin.Visible = IsAdmin()
 
     lblStatus.Caption = "Authenticated successfully."
     Set m_colFiles = New Collection
+
+    On Error GoTo 0
+    Exit Sub
+
+ErrHandler:
+    MsgBox "Error initializing SuperUser form:" & vbCrLf & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description & vbCrLf & vbCrLf & _
+           "Ensure all form controls exist in the VBA Editor form designer." & vbCrLf & _
+           "See the control list at the top of frmSuperUser.frm for required controls.", _
+           vbCritical, "SuperUser Form Error"
+    Application.OnTime Now, "UnloadSuperUser"
 End Sub
 
 '------------------------------------------------------------------------------
