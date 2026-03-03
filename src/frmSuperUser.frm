@@ -108,16 +108,16 @@ Private Sub UserForm_Initialize()
     ' Set up user display
     lblUser.Caption = "User: " & Application.UserName & " | Access: " & GetAccessLevel()
 
-    ' Set default dates
-    txtBrowseDate.Value = Format(Date, "DD/MM/YYYY")
-    txtConsDate.Value = Format(Date, "DD/MM/YYYY")
-    txtStartDate.Value = Format(Date - 7, "DD/MM/YYYY")
-    txtEndDate.Value = Format(Date, "DD/MM/YYYY")
+    ' Date fields: show DD/MM/YYYY placeholder — user types the actual date
+    txtBrowseDate.Value = "DD/MM/YYYY"
+    txtConsDate.Value = "DD/MM/YYYY"
+    txtStartDate.Value = "DD/MM/YYYY"
+    txtEndDate.Value = "DD/MM/YYYY"
 
-    ' Set up search controls
+    ' Search controls
     txtSearchTerm.Value = ""
-    txtSearchDateFrom.Value = Format(Date - 30, "DD/MM/YYYY")
-    txtSearchDateTo.Value = Format(Date, "DD/MM/YYYY")
+    txtSearchDateFrom.Value = "DD/MM/YYYY"
+    txtSearchDateTo.Value = "DD/MM/YYYY"
 
     ' Populate search field dropdown
     cboSearchField.Clear

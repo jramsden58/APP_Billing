@@ -22,7 +22,7 @@ Attribute VB_Exposed = False
 '   lblDate        - Label "Date of Service:"
 '   txtReportDate  - TextBox for date entry (DD/MM/YYYY, auto-formatted)
 '   lblAnesth      - Label "Anesthesiologist:"
-'   lstAnesth      - ListBox for anesthesiologist (filter-as-you-type, 3-letter)
+'   lstAnesth      - ListBox for anesthesiologist (filter-as-you-type)
 '   txtShftSrtTime - TextBox for shift start time (HHMMhr, auto-formatted)
 '   txtShftFinTime - TextBox for shift finish time (HHMMhr, auto-formatted)
 '   cmdSearch      - CommandButton "Search"
@@ -31,6 +31,11 @@ Attribute VB_Exposed = False
 '   cmdGeneratePDF - CommandButton "Generate PDF"
 '   cmdExit        - CommandButton "Exit"
 '   lblStatus      - Label for status messages
+'
+' NOTE: txtShftSrtTime, txtShftFinTime, cmdSearch, and lstDataBse must be
+'       added in the VBA Editor form designer.  All other controls existed
+'       in the original form.  Until the new controls are added the form
+'       still opens and all original functionality continues to work.
 '==============================================================================
 Option Explicit
 
@@ -57,15 +62,16 @@ Private Sub UserForm_Initialize()
     lblUser.Caption = "Logged in as: " & Application.UserName
     On Error GoTo ErrHandler
 
-    ' Date field
-    sStep = "Setting date field"
-    txtReportDate.Value = Format(Date, "DD/MM/YYYY")
+    ' Date field - show placeholder, not today's date
+    sStep = "Setting date placeholder"
+    txtReportDate.Value = "DD/MM/YYYY"
 
-    ' Time fields
-    sStep = "Setting time fields"
+    ' Time fields (new controls - use Controls() to avoid compile error if
+    ' the user hasn't yet added them to the form designer)
+    sStep = "Setting time placeholders"
     On Error Resume Next
-    txtShftSrtTime.Value = "HHMMhr"
-    txtShftFinTime.Value = "HHMMhr"
+    Me.Controls("txtShftSrtTime").Value = "HHMMhr"
+    Me.Controls("txtShftFinTime").Value = "HHMMhr"
     On Error GoTo ErrHandler
 
     ' Configure lstAnesth for manual filter-as-you-type
@@ -95,7 +101,6 @@ Private Sub UserForm_Initialize()
     Dim lastRow As Long
     lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
 
-    ' Count non-empty rows first
     Dim lCount As Long
     Dim i As Long
     Dim sCellVal As String
@@ -127,24 +132,14 @@ Private Sub UserForm_Initialize()
         m_aAnesthNames(0) = ""
     End If
 
-    ' Populate list with all names
+    ' Populate list with all names (no pre-selection - user picks manually)
     sStep = "Populating anesthesiologist list"
     PopulateAnesthList ""
 
-    ' Try to pre-select the current user's name
-    sStep = "Pre-selecting user in list"
-    Dim sUser As String
-    sUser = Application.UserName
-    For i = 0 To lstAnesth.ListCount - 1
-        If InStr(1, lstAnesth.List(i), sUser, vbTextCompare) > 0 Then
-            lstAnesth.ListIndex = i
-            Exit For
-        End If
-    Next i
-
+    ' Clear result list if it exists
     On Error Resume Next
+    Me.Controls("lstDataBse").Clear
     lblStatus.Caption = ""
-    lstDataBse.Clear
     On Error GoTo 0
     Exit Sub
 
@@ -156,7 +151,7 @@ ErrHandler:
 End Sub
 
 '==============================================================================
-' ANESTHESIOLOGIST LIST - filter-as-you-type (3-letter match)
+' ANESTHESIOLOGIST LIST - filter-as-you-type
 '==============================================================================
 
 Private Sub lstAnesth_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
@@ -173,7 +168,7 @@ Private Sub lstAnesth_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
 
     PopulateAnesthList m_sSearchAnesth
 
-    ' If no matches, notify and reset to full list
+    ' No matches: notify and reset to full list
     If lstAnesth.ListCount = 0 And Len(m_sSearchAnesth) > 0 Then
         MsgBox "No anesthesiologist found matching '" & m_sSearchAnesth & "'." & vbCrLf & _
                "The list has been reset. Please try again.", _
@@ -186,12 +181,11 @@ Private Sub lstAnesth_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
 End Sub
 
 '------------------------------------------------------------------------------
-' PopulateAnesthList - Filters lstAnesth by prefix match
+' PopulateAnesthList - Filters lstAnesth by prefix match on sFilter
 '------------------------------------------------------------------------------
 Private Sub PopulateAnesthList(ByVal sFilter As String)
     On Error Resume Next
     lstAnesth.Clear
-
     If Not IsAnesthArrayReady() Then
         On Error GoTo 0
         Exit Sub
@@ -200,7 +194,6 @@ Private Sub PopulateAnesthList(ByVal sFilter As String)
     Dim i As Long
     Dim sLower As String
     sLower = LCase(sFilter)
-
     For i = LBound(m_aAnesthNames) To UBound(m_aAnesthNames)
         If Len(m_aAnesthNames(i)) > 0 Then
             If Len(sFilter) = 0 Or _
@@ -209,20 +202,16 @@ Private Sub PopulateAnesthList(ByVal sFilter As String)
             End If
         End If
     Next i
-
-    ' Auto-select if exactly one match remains
     If lstAnesth.ListCount = 1 Then lstAnesth.ListIndex = 0
     On Error GoTo 0
 End Sub
 
-'------------------------------------------------------------------------------
-' IsAnesthArrayReady - Returns True if m_aAnesthNames is dimensioned and usable
-'------------------------------------------------------------------------------
 Private Function IsAnesthArrayReady() As Boolean
     On Error GoTo NotReady
     Dim n As Long
     n = UBound(m_aAnesthNames)
-    IsAnesthArrayReady = (n >= LBound(m_aAnesthNames) And Len(m_aAnesthNames(LBound(m_aAnesthNames))) > 0)
+    IsAnesthArrayReady = (n >= LBound(m_aAnesthNames) And _
+                          Len(m_aAnesthNames(LBound(m_aAnesthNames))) > 0)
     Exit Function
 NotReady:
     IsAnesthArrayReady = False
@@ -230,6 +219,7 @@ End Function
 
 '==============================================================================
 ' DATE FIELD - txtReportDate (DD/MM/YYYY, auto-formatted)
+' txtReportDate exists in the original form so referenced directly by name.
 '==============================================================================
 
 Private Sub txtReportDate_Enter()
@@ -241,7 +231,6 @@ Private Sub txtReportDate_Exit(ByVal Cancel As MSForms.ReturnBoolean)
 End Sub
 
 Private Sub txtReportDate_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    ' Only allow digits; slashes are auto-inserted by FormatDateField
     If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
 End Sub
 
@@ -253,33 +242,65 @@ End Sub
 
 '==============================================================================
 ' TIME FIELDS - txtShftSrtTime / txtShftFinTime (HHMMhr, auto-formatted)
+' These are NEW controls to be added in the form designer.
+' Their sub names compile without error; control references inside each sub
+' use Me.Controls("name") so no "Variable not defined" even before the
+' controls are placed on the form.
 '==============================================================================
 
 Private Sub txtShftSrtTime_Enter()
-    If txtShftSrtTime.Value = "HHMMhr" Then txtShftSrtTime.Value = ""
+    On Error Resume Next
+    Dim ctl As MSForms.TextBox
+    Set ctl = Me.Controls("txtShftSrtTime")
+    If Not ctl Is Nothing Then
+        If ctl.Value = "HHMMhr" Then ctl.Value = ""
+    End If
+    On Error GoTo 0
 End Sub
 
 Private Sub txtShftSrtTime_Exit(ByVal Cancel As MSForms.ReturnBoolean)
-    If Len(Trim(txtShftSrtTime.Value)) = 0 Then txtShftSrtTime.Value = "HHMMhr"
+    On Error Resume Next
+    Dim ctl As MSForms.TextBox
+    Set ctl = Me.Controls("txtShftSrtTime")
+    If Not ctl Is Nothing Then
+        If Len(Trim(ctl.Value)) = 0 Then ctl.Value = "HHMMhr"
+    End If
+    On Error GoTo 0
 End Sub
 
 Private Sub txtShftSrtTime_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    ' Only allow digits; "hr" suffix is auto-appended
     If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
 End Sub
 
 Private Sub txtShftSrtTime_Change()
     If m_bFormatting Then Exit Sub
-    If txtShftSrtTime.Value = "HHMMhr" Or Len(txtShftSrtTime.Value) = 0 Then Exit Sub
-    FormatTimeField txtShftSrtTime
+    On Error Resume Next
+    Dim ctl As MSForms.TextBox
+    Set ctl = Me.Controls("txtShftSrtTime")
+    On Error GoTo 0
+    If ctl Is Nothing Then Exit Sub
+    If ctl.Value = "HHMMhr" Or Len(ctl.Value) = 0 Then Exit Sub
+    FormatTimeField ctl
 End Sub
 
 Private Sub txtShftFinTime_Enter()
-    If txtShftFinTime.Value = "HHMMhr" Then txtShftFinTime.Value = ""
+    On Error Resume Next
+    Dim ctl As MSForms.TextBox
+    Set ctl = Me.Controls("txtShftFinTime")
+    If Not ctl Is Nothing Then
+        If ctl.Value = "HHMMhr" Then ctl.Value = ""
+    End If
+    On Error GoTo 0
 End Sub
 
 Private Sub txtShftFinTime_Exit(ByVal Cancel As MSForms.ReturnBoolean)
-    If Len(Trim(txtShftFinTime.Value)) = 0 Then txtShftFinTime.Value = "HHMMhr"
+    On Error Resume Next
+    Dim ctl As MSForms.TextBox
+    Set ctl = Me.Controls("txtShftFinTime")
+    If Not ctl Is Nothing Then
+        If Len(Trim(ctl.Value)) = 0 Then ctl.Value = "HHMMhr"
+    End If
+    On Error GoTo 0
 End Sub
 
 Private Sub txtShftFinTime_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
@@ -288,17 +309,19 @@ End Sub
 
 Private Sub txtShftFinTime_Change()
     If m_bFormatting Then Exit Sub
-    If txtShftFinTime.Value = "HHMMhr" Or Len(txtShftFinTime.Value) = 0 Then Exit Sub
-    FormatTimeField txtShftFinTime
+    On Error Resume Next
+    Dim ctl As MSForms.TextBox
+    Set ctl = Me.Controls("txtShftFinTime")
+    On Error GoTo 0
+    If ctl Is Nothing Then Exit Sub
+    If ctl.Value = "HHMMhr" Or Len(ctl.Value) = 0 Then Exit Sub
+    FormatTimeField ctl
 End Sub
 
 '==============================================================================
 ' FORMAT HELPER FUNCTIONS
 '==============================================================================
 
-'------------------------------------------------------------------------------
-' ExtractDigits - Returns only the digit characters from a string
-'------------------------------------------------------------------------------
 Private Function ExtractDigits(ByVal s As String) As String
     Dim i As Long
     Dim sResult As String
@@ -310,16 +333,11 @@ Private Function ExtractDigits(ByVal s As String) As String
     ExtractDigits = sResult
 End Function
 
-'------------------------------------------------------------------------------
-' FormatDateField - Auto-inserts "/" separators for DD/MM/YYYY as user types
-'------------------------------------------------------------------------------
 Private Sub FormatDateField(ByRef ctl As MSForms.TextBox)
     m_bFormatting = True
-
     Dim sDigits As String
     sDigits = ExtractDigits(ctl.Value)
     If Len(sDigits) > 8 Then sDigits = Left(sDigits, 8)
-
     Dim sFormatted As String
     If Len(sDigits) <= 2 Then
         sFormatted = sDigits
@@ -328,32 +346,24 @@ Private Sub FormatDateField(ByRef ctl As MSForms.TextBox)
     Else
         sFormatted = Left(sDigits, 2) & "/" & Mid(sDigits, 3, 2) & "/" & Mid(sDigits, 5)
     End If
-
     If sFormatted <> ctl.Value Then
         ctl.Value = sFormatted
         ctl.SelStart = Len(sFormatted)
     End If
-
     m_bFormatting = False
 End Sub
 
-'------------------------------------------------------------------------------
-' FormatTimeField - Auto-appends "hr" suffix when 4 digits are entered
-'------------------------------------------------------------------------------
 Private Sub FormatTimeField(ByRef ctl As MSForms.TextBox)
     m_bFormatting = True
-
     Dim sDigits As String
     sDigits = ExtractDigits(ctl.Value)
     If Len(sDigits) > 4 Then sDigits = Left(sDigits, 4)
-
     Dim sFormatted As String
     If Len(sDigits) = 4 Then
         sFormatted = sDigits & "hr"
     Else
         sFormatted = sDigits
     End If
-
     If sFormatted <> ctl.Value Then
         ctl.Value = sFormatted
         If Len(sDigits) = 4 Then
@@ -362,14 +372,15 @@ Private Sub FormatTimeField(ByRef ctl As MSForms.TextBox)
             ctl.SelStart = Len(sFormatted)
         End If
     End If
-
     m_bFormatting = False
 End Sub
 
 '==============================================================================
 ' SEARCH - cmdSearch
-' Searches DailyDatabase by selected anesthesiologist + date
-' Results shown in lstDataBse (columns: Proc Code, Start, Finish, IC)
+' Searches DailyDatabase by selected anesthesiologist + date.
+' Results shown in lstDataBse (4 columns: Proc Code / Start / Finish / IC).
+' lstDataBse is a NEW control — accessed via Me.Controls() to avoid compile
+' errors before it has been added to the form designer.
 '==============================================================================
 
 Private Sub cmdSearch_Click()
@@ -395,6 +406,18 @@ Private Sub cmdSearch_Click()
     End If
     On Error GoTo ErrHandler
 
+    ' Retrieve result list box via Controls collection (new control)
+    Dim lst As MSForms.ListBox
+    On Error Resume Next
+    Set lst = Me.Controls("lstDataBse")
+    On Error GoTo ErrHandler
+    If lst Is Nothing Then
+        MsgBox "Result list box (lstDataBse) has not been added to the form yet." & vbCrLf & _
+               "Please add it in the VBA Editor form designer.", _
+               vbExclamation, "Control Missing"
+        Exit Sub
+    End If
+
     Dim sAnesth As String
     sAnesth = lstAnesth.Value
 
@@ -405,10 +428,9 @@ Private Sub cmdSearch_Click()
     lblStatus.Caption = "Searching..."
     DoEvents
 
-    ' Configure result list: 4 columns (Proc Code | Start | Finish | IC)
-    lstDataBse.Clear
-    lstDataBse.ColumnCount = 4
-    lstDataBse.ColumnWidths = "70;40;40;30"
+    lst.Clear
+    lst.ColumnCount = 4
+    lst.ColumnWidths = "70;40;40;30"
     On Error GoTo ErrHandler
 
     Dim ws As Worksheet
@@ -429,10 +451,10 @@ Private Sub cmdSearch_Click()
 
         If InStr(1, sRowAnesth, sAnesth, vbTextCompare) > 0 And sRowDate = sDateStr Then
             On Error Resume Next
-            lstDataBse.AddItem CStr(ws.Cells(i, COL_PROCCODE).Value)
-            lstDataBse.List(lstDataBse.ListCount - 1, 1) = CStr(ws.Cells(i, COL_STARTTIME).Value)
-            lstDataBse.List(lstDataBse.ListCount - 1, 2) = CStr(ws.Cells(i, COL_FINTIME).Value)
-            lstDataBse.List(lstDataBse.ListCount - 1, 3) = CStr(ws.Cells(i, COL_MAXIC).Value)
+            lst.AddItem CStr(ws.Cells(i, COL_PROCCODE).Value)
+            lst.List(lst.ListCount - 1, 1) = CStr(ws.Cells(i, COL_STARTTIME).Value)
+            lst.List(lst.ListCount - 1, 2) = CStr(ws.Cells(i, COL_FINTIME).Value)
+            lst.List(lst.ListCount - 1, 3) = CStr(ws.Cells(i, COL_MAXIC).Value)
             On Error GoTo ErrHandler
             lFound = lFound + 1
         End If
@@ -456,7 +478,7 @@ ErrHandler:
 End Sub
 
 '------------------------------------------------------------------------------
-' Preview Button - Shows the populated ORReportingForm
+' Preview Button
 '------------------------------------------------------------------------------
 Private Sub cmdPreview_Click()
     On Error GoTo ErrHandler
@@ -483,7 +505,7 @@ ErrHandler:
 End Sub
 
 '------------------------------------------------------------------------------
-' Generate PDF Button - Creates and saves the PDF report
+' Generate PDF Button
 '------------------------------------------------------------------------------
 Private Sub cmdGeneratePDF_Click()
     On Error GoTo ErrHandler
@@ -503,7 +525,6 @@ Private Sub cmdGeneratePDF_Click()
 
     If Len(sResult) > 0 Then
         lblStatus.Caption = "PDF saved: " & sResult
-
         If MsgBox("PDF generated successfully. Open the file?", _
                   vbYesNo + vbQuestion, "PDF Ready") = vbYes Then
             On Error Resume Next
@@ -528,7 +549,7 @@ Private Sub cmdExit_Click()
 End Sub
 
 '------------------------------------------------------------------------------
-' ValidateInputs - Checks that required fields are filled
+' ValidateInputs
 '------------------------------------------------------------------------------
 Private Function ValidateInputs() As Boolean
     ValidateInputs = True
@@ -545,7 +566,6 @@ Private Function ValidateInputs() As Boolean
         Exit Function
     End If
 
-    ' Validate date format
     Dim dtTest As Date
     On Error Resume Next
     dtTest = ParseDateInput(txtReportDate.Value)
@@ -559,7 +579,7 @@ Private Function ValidateInputs() As Boolean
 End Function
 
 '------------------------------------------------------------------------------
-' ParseDateInput - Parses a DD/MM/YYYY date string (locale-safe)
+' ParseDateInput
 '------------------------------------------------------------------------------
 Private Function ParseDateInput(ByVal sDate As String) As Date
     ParseDateInput = ParseDateDMY(sDate)

@@ -33,11 +33,14 @@ Attribute VB_Exposed = False
 '==============================================================================
 Option Explicit
 
+' Flag to prevent recursive formatting in Change events
+Private m_bFormatting As Boolean
+
 '------------------------------------------------------------------------------
 ' Form Initialize
 '------------------------------------------------------------------------------
 Private Sub UserForm_Initialize()
-    txtExportDate.Value = Format(Date, "DD/MM/YYYY")
+    txtExportDate.Value = "DD/MM/YYYY"   ' placeholder — user types the actual date
     lblStatus.Caption = ""
     chkOpenFile.Value = True
     On Error Resume Next
@@ -125,14 +128,62 @@ Private Sub cmdExit_Click()
     Unload Me
 End Sub
 
-'------------------------------------------------------------------------------
-' Date placeholder handler
-'------------------------------------------------------------------------------
-Private Sub txtExportDate_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
-                                     ByVal X As Single, ByVal Y As Single)
-    If txtExportDate.Value = "DD/MM/YYYY" Then
-        txtExportDate.Value = ""
+'==============================================================================
+' DATE FIELD - txtExportDate (DD/MM/YYYY, auto-formatted)
+'==============================================================================
+
+Private Sub txtExportDate_Enter()
+    If txtExportDate.Value = "DD/MM/YYYY" Then txtExportDate.Value = ""
+End Sub
+
+Private Sub txtExportDate_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+    If Len(Trim(txtExportDate.Value)) = 0 Then txtExportDate.Value = "DD/MM/YYYY"
+End Sub
+
+Private Sub txtExportDate_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
+    ' Only allow digits; slashes are auto-inserted by FormatDateField
+    If KeyAscii < 48 Or KeyAscii > 57 Then KeyAscii = 0
+End Sub
+
+Private Sub txtExportDate_Change()
+    If m_bFormatting Then Exit Sub
+    If txtExportDate.Value = "DD/MM/YYYY" Or Len(txtExportDate.Value) = 0 Then Exit Sub
+    FormatDateField txtExportDate
+End Sub
+
+'==============================================================================
+' FORMAT HELPERS
+'==============================================================================
+
+Private Function ExtractDigits(ByVal s As String) As String
+    Dim i As Long
+    Dim sResult As String
+    For i = 1 To Len(s)
+        If Mid(s, i, 1) >= "0" And Mid(s, i, 1) <= "9" Then
+            sResult = sResult & Mid(s, i, 1)
+        End If
+    Next i
+    ExtractDigits = sResult
+End Function
+
+Private Sub FormatDateField(ByRef ctl As MSForms.TextBox)
+    m_bFormatting = True
+    Dim sDigits As String
+    sDigits = ExtractDigits(ctl.Value)
+    If Len(sDigits) > 8 Then sDigits = Left(sDigits, 8)
+    Dim sFormatted As String
+    If Len(sDigits) <= 2 Then
+        sFormatted = sDigits
+    ElseIf Len(sDigits) <= 4 Then
+        sFormatted = Left(sDigits, 2) & "/" & Mid(sDigits, 3)
+    Else
+        sFormatted = Left(sDigits, 2) & "/" & Mid(sDigits, 3, 2) & "/" & Mid(sDigits, 5)
     End If
+    If sFormatted <> ctl.Value Then
+        ctl.Value = sFormatted
+        ctl.SelStart = Len(sFormatted)
+    End If
+    m_bFormatting = False
 End Sub
 
 '------------------------------------------------------------------------------
