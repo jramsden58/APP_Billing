@@ -82,10 +82,22 @@ Public Function Submit() As Boolean
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("DailyDatabase")
 
-    ' Find next empty row using column B (Anesthesiologist) which is always written
+    ' Find next empty row using Find (searches from bottom for last cell with data)
+    ' This avoids End(xlUp) which can be fooled by stray content at the sheet bottom
     sStep = "Finding next empty row"
     Dim lRow As Long
-    lRow = ws.Cells(ws.Rows.Count, COL_ANESTH).End(xlUp).Row + 1
+    Dim rngLast As Range
+    Set rngLast = ws.Columns(COL_ANESTH).Find(What:="*", LookIn:=xlValues, _
+                  SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
+    If rngLast Is Nothing Then
+        ' Column B is completely empty - start at row 2 (row 1 = header)
+        lRow = 2
+    ElseIf rngLast.Row < 2 Then
+        ' Only the header row has content
+        lRow = 2
+    Else
+        lRow = rngLast.Row + 1
+    End If
 
     sStep = "Writing form data to row " & lRow
 
@@ -403,6 +415,9 @@ Public Sub InitialSetup()
         ws.Cells(1, COL_SYNCSTATUS).Value = "Sync Status"
     End If
 
+    ' Clean up any stray data beyond the real data range
+    CleanDailyDatabase
+
     ' Update Home sheet status
     UpdateHomeStatus
 
@@ -410,4 +425,46 @@ Public Sub InitialSetup()
            "Network Path: " & GetNetworkPath() & vbCrLf & _
            "User: " & GetCurrentUser(), _
            vbInformation, "Setup Complete"
+End Sub
+
+'------------------------------------------------------------------------------
+' CleanDailyDatabase - Removes stray content beyond the real data range
+' Run this to fix issues where End(xlUp) finds content at the bottom of the sheet
+'------------------------------------------------------------------------------
+Public Sub CleanDailyDatabase()
+    On Error GoTo ErrHandler
+
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("DailyDatabase")
+
+    ' Find the true last row of data (searching from the top)
+    Dim lTrueLastRow As Long
+    Dim rngLast As Range
+    Set rngLast = ws.UsedRange.Find(What:="*", LookIn:=xlValues, _
+                  SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
+
+    If rngLast Is Nothing Then
+        lTrueLastRow = 1 ' Only header or empty
+    Else
+        lTrueLastRow = rngLast.Row
+    End If
+
+    ' Check if UsedRange extends far beyond the true data
+    Dim lUsedLastRow As Long
+    lUsedLastRow = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
+
+    If lUsedLastRow > lTrueLastRow + 10 Then
+        ' Clear everything below the real data (plus a small buffer)
+        Dim lClearFrom As Long
+        lClearFrom = lTrueLastRow + 1
+        ws.Rows(lClearFrom & ":" & lUsedLastRow).Delete
+        MsgBox "Cleaned up " & (lUsedLastRow - lClearFrom + 1) & _
+               " stray rows from DailyDatabase." & vbCrLf & _
+               "Data now ends at row " & lTrueLastRow & ".", _
+               vbInformation, "Cleanup Complete"
+    End If
+
+    Exit Sub
+ErrHandler:
+    MsgBox "Cleanup error: " & Err.Description, vbExclamation, "Cleanup"
 End Sub

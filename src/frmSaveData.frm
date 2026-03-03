@@ -107,6 +107,22 @@ Private Sub UserForm_Initialize()
     ' Populate all list boxes with full item lists
     PopulateAllListBoxes
 
+    ' Verify lstShftName loaded correctly (common issue: control name mismatch)
+    On Error Resume Next
+    Dim lShftCount As Long
+    lShftCount = lstShftName.ListCount
+    If Err.Number <> 0 Then
+        MsgBox "WARNING: List box 'lstShftName' not found on the form." & vbCrLf & _
+               "The Shift Name control may have a different name in the form designer." & vbCrLf & _
+               "Check that the ListBox control is named exactly 'lstShftName' (no 'i').", _
+               vbExclamation, "Control Name Mismatch"
+    ElseIf lShftCount = 0 Then
+        MsgBox "WARNING: Shift Name list box is empty." & vbCrLf & _
+               "Check that LookupLists sheet has shift names in column E.", _
+               vbExclamation, "Empty List Box"
+    End If
+    On Error GoTo 0
+
     Call Reset
 End Sub
 
