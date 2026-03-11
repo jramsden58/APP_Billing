@@ -571,11 +571,28 @@ Private Sub cmdSave_Click()
         If m_lEditRow > 0 Then
             Dim wsEdit As Worksheet
             Set wsEdit = ThisWorkbook.Sheets("DailyDatabase")
-            ' Verify the row still exists
+
+            ' Capture old record identity for network deletion before removing local row
+            Dim sOldSubmittedOn As String
+            Dim sOldFileUser As String
+            Dim sOldDateVal As String
+            sOldSubmittedOn = CStr(wsEdit.Cells(m_lEditRow, COL_SUBMON).Value)
+            sOldFileUser = CStr(wsEdit.Cells(m_lEditRow, COL_SUBMBY).Value)
+            sOldDateVal = CStr(wsEdit.Cells(m_lEditRow, COL_DATE).Value)
+
+            ' Delete old row locally
             If m_lEditRow <= wsEdit.Cells(wsEdit.Rows.Count, COL_ANESTH).End(xlUp).Row Then
                 wsEdit.Rows(m_lEditRow).Delete
             End If
             m_lEditRow = 0
+
+            ' Remove old record from the network file
+            If IsNetworkAvailable() And Len(sOldSubmittedOn) > 0 Then
+                Dim dtOldSvc As Date
+                If TryParseDateDMY(sOldDateVal, dtOldSvc) Then
+                    DeleteFromNetworkFile sOldFileUser, dtOldSvc, sOldSubmittedOn
+                End If
+            End If
         End If
 
         Call Reset
@@ -748,12 +765,38 @@ Private Sub cmdDelete_Click()
             "Anesthesiologist: " & ws.Cells(lastRow, COL_ANESTH).Value & vbCrLf & _
             "Date: " & sDisplayDate & vbCrLf & _
             "Procedure: " & ws.Cells(lastRow, COL_PROCCODE).Value & vbCrLf & _
-            "Submitted: " & ws.Cells(lastRow, COL_SUBMON).Value & vbCrLf & vbCrLf & _
-            "Note: This only deletes the local copy. Network copy is not affected."
+            "Submitted: " & ws.Cells(lastRow, COL_SUBMON).Value
 
     If MsgBox(sInfo, vbYesNo + vbExclamation, "Confirm Delete") = vbYes Then
+        ' Capture network identity before removing local row
+        Dim sDelSubmittedOn As String
+        Dim sDelFileUser As String
+        Dim sDelDateVal As String
+        sDelSubmittedOn = CStr(ws.Cells(lastRow, COL_SUBMON).Value)
+        sDelFileUser = CStr(ws.Cells(lastRow, COL_SUBMBY).Value)
+        sDelDateVal = CStr(ws.Cells(lastRow, COL_DATE).Value)
+
+        ' Delete locally
         ws.Rows(lastRow).Delete
-        MsgBox "Record deleted locally.", vbInformation, "Deleted"
+        ThisWorkbook.Save
+
+        ' Remove from network file
+        Dim bNetDel As Boolean
+        bNetDel = False
+        If IsNetworkAvailable() And Len(sDelSubmittedOn) > 0 Then
+            Dim dtDelSvc As Date
+            If TryParseDateDMY(sDelDateVal, dtDelSvc) Then
+                bNetDel = DeleteFromNetworkFile(sDelFileUser, dtDelSvc, sDelSubmittedOn)
+            End If
+        End If
+
+        If bNetDel Then
+            MsgBox "Record deleted locally and from the network.", vbInformation, "Deleted"
+        Else
+            MsgBox "Record deleted locally." & vbCrLf & _
+                   "Network copy could not be removed (network unavailable or record not found).", _
+                   vbExclamation, "Deleted (Local Only)"
+        End If
     End If
 
     Exit Sub

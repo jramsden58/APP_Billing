@@ -385,6 +385,99 @@ ErrHandler:
 End Function
 
 '------------------------------------------------------------------------------
+' DeleteFromNetworkFile - Removes one record from a user's daily network file
+'
+' Matches by COL_SUBMON (Submitted On timestamp) which is unique per record.
+'
+' Parameters:
+'   sFileUser    - Windows username used for file naming (COL_SUBMBY value)
+'   dtDate       - Date of service (determines which daily file to open)
+'   sSubmittedOn - Exact COL_SUBMON cell value of the record to remove
+'
+' Returns True if the record was found and removed, False otherwise.
+'------------------------------------------------------------------------------
+Public Function DeleteFromNetworkFile(ByVal sFileUser As String, _
+                                      ByVal dtDate As Date, _
+                                      ByVal sSubmittedOn As String) As Boolean
+    On Error GoTo ErrHandler
+
+    Dim sFilePath As String
+    sFilePath = GetUserDailyFilePath(sFileUser, dtDate)
+
+    If Len(sFilePath) = 0 Or Dir(sFilePath) = "" Then
+        DeleteFromNetworkFile = False
+        Exit Function
+    End If
+
+    ' Retry logic - 3 attempts with 2-second delay
+    Dim iAttempt As Long
+    For iAttempt = 1 To 3
+        If TryDeleteFromFile(sFilePath, sSubmittedOn) Then
+            DeleteFromNetworkFile = True
+            Exit Function
+        End If
+        If iAttempt < 3 Then
+            Application.Wait Now + TimeSerial(0, 0, 2)
+        End If
+    Next iAttempt
+
+    DeleteFromNetworkFile = False
+    Exit Function
+
+ErrHandler:
+    DeleteFromNetworkFile = False
+End Function
+
+'------------------------------------------------------------------------------
+' TryDeleteFromFile - Single attempt to find and delete a record in a file
+'------------------------------------------------------------------------------
+Private Function TryDeleteFromFile(ByVal sFilePath As String, _
+                                    ByVal sSubmittedOn As String) As Boolean
+    On Error GoTo ErrHandler
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+
+    Dim wb As Workbook
+    Set wb = Workbooks.Open(sFilePath, UpdateLinks:=0, ReadOnly:=False)
+
+    Dim ws As Worksheet
+    Set ws = wb.Sheets(1)
+
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.Rows.Count, COL_ANESTH).End(xlUp).Row
+
+    Dim i As Long
+    Dim bFound As Boolean
+    bFound = False
+    For i = 2 To lastRow
+        If CStr(ws.Cells(i, COL_SUBMON).Value) = sSubmittedOn Then
+            ws.Rows(i).Delete
+            bFound = True
+            Exit For
+        End If
+    Next i
+
+    If bFound Then
+        wb.Save
+    End If
+    wb.Close SaveChanges:=False
+
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+
+    TryDeleteFromFile = bFound
+    Exit Function
+
+ErrHandler:
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    TryDeleteFromFile = False
+End Function
+
+'------------------------------------------------------------------------------
 ' GetSyncStats - Returns sync status counts as a string
 '------------------------------------------------------------------------------
 Public Function GetSyncStats() As String
