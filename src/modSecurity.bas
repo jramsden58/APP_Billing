@@ -198,10 +198,24 @@ End Function
 Public Sub CreateSuperUsersFile()
     On Error GoTo ErrHandler
 
+    Dim sStep As String
+    sStep = "Checking network path"
+
+    Dim sNetPath As String
+    sNetPath = GetNetworkPath()
+
+    If Len(sNetPath) = 0 Then
+        MsgBox "Network path is not configured." & vbCrLf & _
+               "Please run InitialSetup and enter a valid path first.", _
+               vbExclamation, "Not Configured"
+        Exit Sub
+    End If
+
     Dim sPath As String
-    sPath = GetNetworkPath() & FOLDER_CONFIG & "\SuperUsers.xlsx"
+    sPath = sNetPath & FOLDER_CONFIG & "\SuperUsers.xlsx"
 
     ' Check if already exists
+    sStep = "Checking if file exists"
     If Dir(sPath) <> "" Then
         If MsgBox("SuperUsers.xlsx already exists. Overwrite?", _
                   vbYesNo + vbQuestion, "Confirm") = vbNo Then
@@ -209,7 +223,21 @@ Public Sub CreateSuperUsersFile()
         End If
     End If
 
+    ' Ensure config folder exists BEFORE creating the workbook
+    sStep = "Creating Config folder: " & sNetPath & FOLDER_CONFIG
+    CreateFolderIfNotExists sNetPath & FOLDER_CONFIG
+
+    ' Verify the folder was actually created (CreateFolderIfNotExists fails silently)
+    If Dir(sNetPath & FOLDER_CONFIG, vbDirectory) = "" Then
+        MsgBox "Could not create the Config folder:" & vbCrLf & _
+               sNetPath & FOLDER_CONFIG & vbCrLf & vbCrLf & _
+               "Ensure the network path is accessible and you have write permission.", _
+               vbCritical, "Folder Creation Failed"
+        Exit Sub
+    End If
+
     ' Create new workbook
+    sStep = "Creating workbook"
     Dim wb As Workbook
     Set wb = Workbooks.Add(xlWBATWorksheet)
 
@@ -218,6 +246,7 @@ Public Sub CreateSuperUsersFile()
     ws.Name = "SuperUsers"
 
     ' Headers
+    sStep = "Writing headers"
     ws.Cells(1, SU_COL_USERNAME).Value = "Windows Username"
     ws.Cells(1, SU_COL_DISPLAYNAME).Value = "Display Name"
     ws.Cells(1, SU_COL_ACCESS).Value = "Access Level"
@@ -230,6 +259,7 @@ Public Sub CreateSuperUsersFile()
     End With
 
     ' Add the current user as the first admin
+    sStep = "Adding current user as Admin"
     ws.Cells(2, SU_COL_USERNAME).Value = Environ("USERNAME")
     ws.Cells(2, SU_COL_DISPLAYNAME).Value = Application.UserName
     ws.Cells(2, SU_COL_ACCESS).Value = "Admin"
@@ -237,16 +267,17 @@ Public Sub CreateSuperUsersFile()
     ' Auto-fit columns
     ws.Columns("A:C").AutoFit
 
-    ' Add data validation for Access Level
+    ' Add data validation for Access Level (non-critical — skip if locale rejects comma separator)
+    sStep = "Adding data validation"
+    On Error Resume Next
     With ws.Range("C2:C100").Validation
         .Delete
         .Add Type:=xlValidateList, Formula1:="Admin,ReadOnly"
     End With
-
-    ' Ensure config folder exists
-    CreateFolderIfNotExists GetNetworkPath() & FOLDER_CONFIG
+    On Error GoTo ErrHandler
 
     ' Save
+    sStep = "Saving SuperUsers.xlsx to: " & sPath
     Application.DisplayAlerts = False
     wb.SaveAs sPath, FileFormat:=xlOpenXMLWorkbook
     Application.DisplayAlerts = True
@@ -261,7 +292,11 @@ ErrHandler:
     Application.DisplayAlerts = True
     On Error Resume Next
     If Not wb Is Nothing Then wb.Close SaveChanges:=False
-    MsgBox "Error creating SuperUsers file: " & Err.Description, vbCritical, "Setup Error"
+    MsgBox "Error creating SuperUsers file at step:" & vbCrLf & _
+           "  " & sStep & vbCrLf & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description & vbCrLf & vbCrLf & _
+           "Network path: " & GetNetworkPath(), _
+           vbCritical, "Setup Error"
 End Sub
 
 '------------------------------------------------------------------------------

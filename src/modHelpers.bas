@@ -17,6 +17,15 @@ Public Sub UnloadSuperUser()
 End Sub
 
 '------------------------------------------------------------------------------
+' UnloadPrntData - Deferred unload for frmPrntData when initialization fails
+' Called via Application.OnTime from UserForm_Initialize
+'------------------------------------------------------------------------------
+Public Sub UnloadPrntData()
+    On Error Resume Next
+    Unload frmPrntData
+End Sub
+
+'------------------------------------------------------------------------------
 ' ParseDateDMY - Parses a DD/MM/YYYY date string regardless of system locale
 '
 ' Always interprets as DD/MM/YYYY. Never uses IsDate/CDate which depend on
