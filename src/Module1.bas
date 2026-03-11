@@ -221,9 +221,10 @@ Public Function Submit() As Boolean
         sStep = "Writing Submitted By"
         ws.Cells(lRow, COL_SUBMBY).Value = GetCurrentUser()
 
-        ' Column AA: Submitted On - force text so MM/DD locale cannot auto-convert DD/MM string
+        ' Column AA: Submitted On - ISO format (YYYY-MM-DD HH:nn:SS) is unambiguous in
+        ' all locales - Excel never misinterprets a year-first date string.
         ws.Cells(lRow, COL_SUBMON).NumberFormat = "@"
-        ws.Cells(lRow, COL_SUBMON).Value = FormatTimestamp(Now)
+        ws.Cells(lRow, COL_SUBMON).Value = Format(Now, "YYYY-MM-DD HH:nn:SS")
 
         ' Column AB: Sync Status (initially empty, set by SaveToNetwork)
         ws.Cells(lRow, COL_SYNCSTATUS).Value = ""

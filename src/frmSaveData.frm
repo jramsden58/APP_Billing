@@ -1046,10 +1046,13 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' IsRecordFromToday - Checks if a record's "Submitted On" date matches today
+' v3 - ISO timestamp fix
 '
-' Handles two storage formats for COL_SUBMON:
-'   (a) Text string "DD/MM/YYYY HH:nn:SS" - written by FormatTimestamp()
-'   (b) Excel date/time serial - if Excel auto-converted the string on write
+' Handles three storage formats for COL_SUBMON:
+'   (a) Numeric: Excel date/time serial (auto-converted from old FormatTimestamp string)
+'       On MM/DD locale systems day and month were swapped — apply swap fix.
+'   (b) Text "YYYY-MM-DD...": ISO format written by Submit() after v3 fix (no ambiguity)
+'   (c) Text "DD/MM/YYYY...": legacy text format from older records
 ' Compares date portion only (ignores time component).
 '------------------------------------------------------------------------------
 Private Function IsRecordFromToday(ByVal ws As Worksheet, ByVal lRow As Long) As Boolean
@@ -1093,15 +1096,24 @@ Private Function IsRecordFromToday(ByVal ws As Worksheet, ByVal lRow As Long) As
 
         IsRecordFromToday = False
     Else
-        ' Text string (stored correctly as "DD/MM/YYYY HH:nn:SS" or similar)
+        ' Text string - detect format from leading characters
         Dim sStr As String
         sStr = Trim(Left(CStr(vSubmittedOn), 10))
-        Dim dtParsed As Date
-        If Not TryParseDateDMY(sStr, dtParsed) Then
-            IsRecordFromToday = False
-            Exit Function
+
+        ' ISO "YYYY-MM-DD" format (new records after v3 fix) - year-first, unambiguous
+        If Len(sStr) >= 10 And Mid(sStr, 5, 1) = "-" And Mid(sStr, 8, 1) = "-" Then
+            Dim dtISO As Date
+            dtISO = DateSerial(CInt(Left(sStr, 4)), CInt(Mid(sStr, 6, 2)), CInt(Mid(sStr, 9, 2)))
+            IsRecordFromToday = (DateValue(dtISO) = Date)
+        Else
+            ' Legacy "DD/MM/YYYY" text format
+            Dim dtParsed As Date
+            If Not TryParseDateDMY(sStr, dtParsed) Then
+                IsRecordFromToday = False
+                Exit Function
+            End If
+            IsRecordFromToday = (DateValue(dtParsed) = Date)
         End If
-        IsRecordFromToday = (DateValue(dtParsed) = Date)
     End If
 
     Exit Function
