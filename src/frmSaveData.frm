@@ -715,13 +715,21 @@ Private Sub cmdDelete_Click()
         End If
     End If
 
-    ' Check if the record was submitted today (day-only editing restriction)
-    If Not IsRecordFromToday(ws, lastRow) Then
-        ' Past record - require superuser authentication
+    ' Restrict deletion: current user's own records, entered today only
+    ' Superuser can override both restrictions
+    Dim bDelToday As Boolean
+    Dim bDelOwner As Boolean
+    bDelToday = IsRecordFromToday(ws, lastRow)
+    bDelOwner = (LCase(CStr(ws.Cells(lastRow, COL_SUBMBY).Value)) = LCase(GetCurrentUser()))
+    If Not (bDelToday And bDelOwner) Then
         If Not AuthenticateSuperUser() Then
-            MsgBox "You can only delete records submitted today." & vbCrLf & _
-                   "Superuser access is required to delete past records.", _
-                   vbExclamation, "Access Denied"
+            If Not bDelToday Then
+                MsgBox "You can only delete records entered today.", _
+                       vbExclamation, "Access Denied"
+            Else
+                MsgBox "You can only delete your own records.", _
+                       vbExclamation, "Access Denied"
+            End If
             Exit Sub
         End If
     End If
@@ -792,13 +800,21 @@ Private Sub cmdEdit_Click()
         End If
     End If
 
-    ' Check if the record was submitted today (day-only editing restriction)
-    If Not IsRecordFromToday(ws, lastRow) Then
-        ' Past record - require superuser authentication
+    ' Restrict editing: current user's own records, entered today only
+    ' Superuser can override both restrictions
+    Dim bEditToday As Boolean
+    Dim bEditOwner As Boolean
+    bEditToday = IsRecordFromToday(ws, lastRow)
+    bEditOwner = (LCase(CStr(ws.Cells(lastRow, COL_SUBMBY).Value)) = LCase(GetCurrentUser()))
+    If Not (bEditToday And bEditOwner) Then
         If Not AuthenticateSuperUser() Then
-            MsgBox "You can only edit records submitted today." & vbCrLf & _
-                   "Superuser access is required to edit past records.", _
-                   vbExclamation, "Access Denied"
+            If Not bEditToday Then
+                MsgBox "You can only edit records entered today.", _
+                       vbExclamation, "Access Denied"
+            Else
+                MsgBox "You can only edit your own records.", _
+                       vbExclamation, "Access Denied"
+            End If
             Exit Sub
         End If
     End If
@@ -839,8 +855,14 @@ Private Sub cmdEdit_Click()
             .optERH.Value = True
         End If
 
-        ' Date
-        .txtDteOfSer.Value = CStr(ws.Cells(lastRow, COL_DATE).Value)
+        ' Date - always display as DD/MM/YYYY regardless of how cell stores it
+        Dim vEditDate As Variant
+        vEditDate = ws.Cells(lastRow, COL_DATE).Value
+        If IsNumeric(vEditDate) Then
+            .txtDteOfSer.Value = Format(CDate(vEditDate), "DD/MM/YYYY")
+        Else
+            .txtDteOfSer.Value = CStr(vEditDate)
+        End If
 
         ' Shift Name - find in list (single column)
         Dim sShift As String
@@ -992,10 +1014,14 @@ Private Sub cmdEdit_Click()
         .txtWCBDiagCode.Value = CStr(ws.Cells(lastRow, COL_WCBDIAG).Value)
         .txtWCBInjCode.Value = CStr(ws.Cells(lastRow, COL_WCBINJ).Value)
 
-        Dim sWCBDate As String
-        sWCBDate = CStr(ws.Cells(lastRow, COL_WCBDATE).Value)
-        If Len(sWCBDate) > 0 Then
-            .txtWCBDteofInj.Value = sWCBDate
+        Dim vWCBDate As Variant
+        vWCBDate = ws.Cells(lastRow, COL_WCBDATE).Value
+        If Not IsEmpty(vWCBDate) And Len(CStr(vWCBDate)) > 0 Then
+            If IsNumeric(vWCBDate) Then
+                .txtWCBDteofInj.Value = Format(CDate(vWCBDate), "DD/MM/YYYY")
+            Else
+                .txtWCBDteofInj.Value = CStr(vWCBDate)
+            End If
         End If
     End With
 
