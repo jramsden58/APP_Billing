@@ -721,6 +721,8 @@ Private Sub cmdDelete_Click()
     Dim bDelOwner As Boolean
     bDelToday = IsRecordFromToday(ws, lastRow)
     bDelOwner = (LCase(CStr(ws.Cells(lastRow, COL_SUBMBY).Value)) = LCase(GetCurrentUser()))
+
+
     If Not (bDelToday And bDelOwner) Then
         If Not AuthenticateSuperUser() Then
             If Not bDelToday Then
@@ -1061,22 +1063,47 @@ Private Function IsRecordFromToday(ByVal ws As Worksheet, ByVal lRow As Long) As
         Exit Function
     End If
 
-    Dim dtSubmitted As Date
     If IsNumeric(vSubmittedOn) Then
-        ' Excel stored value as a date/time serial number
-        dtSubmitted = CDate(vSubmittedOn)
+        ' Excel stored as a date/time serial (auto-converted from FormatTimestamp string).
+        ' On MM/DD locale systems, FormatTimestamp writes "DD/MM/YYYY" but Excel reads
+        ' it as MM/DD, swapping day and month (e.g. "11/03/2026" stored as Nov 3 not Mar 11).
+        ' Fix: try both direct match and day/month-swapped match.
+        Dim dtStored As Date
+        dtStored = CDate(vSubmittedOn)
+
+        ' Direct match (correct locale, or same-day ambiguous dates like 01/01)
+        If DateValue(dtStored) = Date Then
+            IsRecordFromToday = True
+            Exit Function
+        End If
+
+        ' Swapped match: reconstruct original DD/MM date by swapping stored day and month
+        Dim iD As Integer, iM As Integer, iY As Integer
+        iD = Day(dtStored)    ' This was the original month digit
+        iM = Month(dtStored)  ' This was the original day digit
+        iY = Year(dtStored)
+        If iD <= 12 Then      ' Only valid if the stored day can be a month number
+            Dim dtFixed As Date
+            dtFixed = DateSerial(iY, iD, iM)
+            If DateValue(dtFixed) = Date Then
+                IsRecordFromToday = True
+                Exit Function
+            End If
+        End If
+
+        IsRecordFromToday = False
     Else
-        ' Text string: extract first 10 chars (DD/MM/YYYY) and parse
+        ' Text string (stored correctly as "DD/MM/YYYY HH:nn:SS" or similar)
         Dim sStr As String
         sStr = Trim(Left(CStr(vSubmittedOn), 10))
-        If Not TryParseDateDMY(sStr, dtSubmitted) Then
+        Dim dtParsed As Date
+        If Not TryParseDateDMY(sStr, dtParsed) Then
             IsRecordFromToday = False
             Exit Function
         End If
+        IsRecordFromToday = (DateValue(dtParsed) = Date)
     End If
 
-    ' Compare date portion only - DateValue strips any time component
-    IsRecordFromToday = (DateValue(dtSubmitted) = Date)
     Exit Function
 
 NotToday:

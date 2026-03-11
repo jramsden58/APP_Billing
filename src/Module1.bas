@@ -118,9 +118,11 @@ Public Function Submit() As Boolean
         End If
 
         ' Column D: Date of Service
+        ' Force text format so MM/DD locale systems cannot auto-convert "DD/MM/YYYY" strings
         Dim sDate As String
         sDate = .txtDteOfSer.Value
         If sDate <> "DD/MM/YYYY" And Len(sDate) > 0 Then
+            ws.Cells(lRow, COL_DATE).NumberFormat = "@"
             ws.Cells(lRow, COL_DATE).Value = sDate
         End If
 
@@ -219,7 +221,8 @@ Public Function Submit() As Boolean
         sStep = "Writing Submitted By"
         ws.Cells(lRow, COL_SUBMBY).Value = GetCurrentUser()
 
-        ' Column AA: Submitted On (timestamp - use nn for minutes, not MM)
+        ' Column AA: Submitted On - force text so MM/DD locale cannot auto-convert DD/MM string
+        ws.Cells(lRow, COL_SUBMON).NumberFormat = "@"
         ws.Cells(lRow, COL_SUBMON).Value = FormatTimestamp(Now)
 
         ' Column AB: Sync Status (initially empty, set by SaveToNetwork)
