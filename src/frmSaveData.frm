@@ -694,13 +694,20 @@ Private Sub cmdDelete_Click()
     End If
 
     ' Check if the record's date of service has been exported (locked)
-    Dim sRecordDate As String
-    sRecordDate = CStr(ws.Cells(lastRow, COL_DATE).Value)
     Dim dtRecordDate As Date
-    If TryParseDateDMY(sRecordDate, dtRecordDate) Then
+    Dim bHaveRecordDate As Boolean
+    Dim vDateCell As Variant
+    vDateCell = ws.Cells(lastRow, COL_DATE).Value
+    If IsNumeric(vDateCell) Then
+        dtRecordDate = CDate(vDateCell)
+        bHaveRecordDate = True
+    Else
+        bHaveRecordDate = TryParseDateDMY(CStr(vDateCell), dtRecordDate)
+    End If
+    If bHaveRecordDate Then
         If IsDateExported(dtRecordDate) Then
             If Not IsAuthenticated() Then
-                MsgBox "This record's date (" & sRecordDate & ") has been exported and locked." & vbCrLf & _
+                MsgBox "This record's date (" & Format(dtRecordDate, "DD/MM/YYYY") & ") has been exported and locked." & vbCrLf & _
                        "Contact a superuser to make changes.", _
                        vbExclamation, "Date Locked"
                 Exit Sub
@@ -721,9 +728,15 @@ Private Sub cmdDelete_Click()
 
     ' Show last record info for confirmation
     Dim sInfo As String
+    Dim sDisplayDate As String
+    If IsNumeric(ws.Cells(lastRow, COL_DATE).Value) Then
+        sDisplayDate = Format(CDate(ws.Cells(lastRow, COL_DATE).Value), "DD/MM/YYYY")
+    Else
+        sDisplayDate = CStr(ws.Cells(lastRow, COL_DATE).Value)
+    End If
     sInfo = "Delete the last record?" & vbCrLf & vbCrLf & _
             "Anesthesiologist: " & ws.Cells(lastRow, COL_ANESTH).Value & vbCrLf & _
-            "Date: " & ws.Cells(lastRow, COL_DATE).Value & vbCrLf & _
+            "Date: " & sDisplayDate & vbCrLf & _
             "Procedure: " & ws.Cells(lastRow, COL_PROCCODE).Value & vbCrLf & _
             "Submitted: " & ws.Cells(lastRow, COL_SUBMON).Value & vbCrLf & vbCrLf & _
             "Note: This only deletes the local copy. Network copy is not affected."
@@ -758,13 +771,20 @@ Private Sub cmdEdit_Click()
     End If
 
     ' Check if the record's date of service has been exported (locked)
-    Dim sRecordDate As String
-    sRecordDate = CStr(ws.Cells(lastRow, COL_DATE).Value)
     Dim dtRecordDate As Date
-    If TryParseDateDMY(sRecordDate, dtRecordDate) Then
+    Dim bHaveRecordDate As Boolean
+    Dim vDateCell As Variant
+    vDateCell = ws.Cells(lastRow, COL_DATE).Value
+    If IsNumeric(vDateCell) Then
+        dtRecordDate = CDate(vDateCell)
+        bHaveRecordDate = True
+    Else
+        bHaveRecordDate = TryParseDateDMY(CStr(vDateCell), dtRecordDate)
+    End If
+    If bHaveRecordDate Then
         If IsDateExported(dtRecordDate) Then
             If Not IsAuthenticated() Then
-                MsgBox "This record's date (" & sRecordDate & ") has been exported and locked." & vbCrLf & _
+                MsgBox "This record's date (" & Format(dtRecordDate, "DD/MM/YYYY") & ") has been exported and locked." & vbCrLf & _
                        "Contact a superuser to make changes.", _
                        vbExclamation, "Date Locked"
                 Exit Sub
@@ -998,33 +1018,39 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' IsRecordFromToday - Checks if a record's "Submitted On" date matches today
+'
+' Handles two storage formats for COL_SUBMON:
+'   (a) Text string "DD/MM/YYYY HH:nn:SS" - written by FormatTimestamp()
+'   (b) Excel date/time serial - if Excel auto-converted the string on write
+' Compares date portion only (ignores time component).
 '------------------------------------------------------------------------------
 Private Function IsRecordFromToday(ByVal ws As Worksheet, ByVal lRow As Long) As Boolean
     On Error GoTo NotToday
 
-    Dim sSubmittedOn As String
-    sSubmittedOn = CStr(ws.Cells(lRow, COL_SUBMON).Value)
+    Dim vSubmittedOn As Variant
+    vSubmittedOn = ws.Cells(lRow, COL_SUBMON).Value
 
-    If Len(sSubmittedOn) = 0 Then
+    If IsEmpty(vSubmittedOn) Or Len(CStr(vSubmittedOn)) = 0 Then
         IsRecordFromToday = False
         Exit Function
     End If
 
-    ' The "Submitted On" field is in "DD/MM/YYYY HH:nn:SS" format
-    ' Extract the date part (first 10 characters)
-    Dim sDatePart As String
-    If Len(sSubmittedOn) >= 10 Then
-        sDatePart = Left(sSubmittedOn, 10)
+    Dim dtSubmitted As Date
+    If IsNumeric(vSubmittedOn) Then
+        ' Excel stored value as a date/time serial number
+        dtSubmitted = CDate(vSubmittedOn)
     Else
-        sDatePart = sSubmittedOn
+        ' Text string: extract first 10 chars (DD/MM/YYYY) and parse
+        Dim sStr As String
+        sStr = Trim(Left(CStr(vSubmittedOn), 10))
+        If Not TryParseDateDMY(sStr, dtSubmitted) Then
+            IsRecordFromToday = False
+            Exit Function
+        End If
     End If
 
-    Dim dtSubmitted As Date
-    If TryParseDateDMY(sDatePart, dtSubmitted) Then
-        IsRecordFromToday = (dtSubmitted = Date)
-    Else
-        IsRecordFromToday = False
-    End If
+    ' Compare date portion only - DateValue strips any time component
+    IsRecordFromToday = (DateValue(dtSubmitted) = Date)
     Exit Function
 
 NotToday:
