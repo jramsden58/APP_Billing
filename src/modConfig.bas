@@ -343,9 +343,11 @@ Public Sub MarkDateExported(ByVal dtDate As Date)
     Dim lRow As Long
     lRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
 
+    ' Store date as text to prevent Excel locale auto-conversion
+    ws.Cells(lRow, 1).NumberFormat = "@"
     ws.Cells(lRow, 1).Value = Format(dtDate, "DD/MM/YYYY")
     ws.Cells(lRow, 2).Value = GetCurrentUser()
-    ws.Cells(lRow, 3).Value = FormatTimestamp(Now)
+    ws.Cells(lRow, 3).Value = Format(Now, "YYYY-MM-DD HH:nn:SS")
 
     Exit Sub
 ErrHandler:
@@ -379,8 +381,17 @@ Public Function IsDateExported(ByVal dtDate As Date) As Boolean
 
     Dim i As Long
     For i = 2 To lastRow
-        If CStr(ws.Cells(i, 1).Value) = sDateStr And _
-           CStr(ws.Cells(i, 2).Value) = sUser Then
+        ' Normalise the stored date: handle text "DD/MM/YYYY" and numeric serial
+        Dim sCellDate As String
+        Dim vCellDate As Variant
+        vCellDate = ws.Cells(i, 1).Value
+        If IsNumeric(vCellDate) And Not IsEmpty(vCellDate) Then
+            sCellDate = Format(CDate(vCellDate), "DD/MM/YYYY")
+        Else
+            sCellDate = CStr(vCellDate)
+        End If
+
+        If sCellDate = sDateStr And CStr(ws.Cells(i, 2).Value) = sUser Then
             IsDateExported = True
             Exit Function
         End If

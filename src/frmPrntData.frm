@@ -421,9 +421,6 @@ Private Sub cmdSearch_Click()
     Dim sAnesth As String
     sAnesth = lstAnesth.Value
 
-    Dim sDateStr As String
-    sDateStr = Format(dtDate, "DD/MM/YYYY")
-
     On Error Resume Next
     lblStatus.Caption = "Searching..."
     DoEvents
@@ -445,25 +442,39 @@ Private Sub cmdSearch_Click()
 
     For i = 2 To lastRow
         Dim sRowAnesth As String
-        Dim sRowDate As String
         sRowAnesth = Trim(CStr(ws.Cells(i, COL_ANESTH).Value))
-        sRowDate   = Trim(CStr(ws.Cells(i, COL_DATE).Value))
 
-        If InStr(1, sRowAnesth, sAnesth, vbTextCompare) > 0 And sRowDate = sDateStr Then
-            On Error Resume Next
-            lst.AddItem CStr(ws.Cells(i, COL_PROCCODE).Value)
-            lst.List(lst.ListCount - 1, 1) = CStr(ws.Cells(i, COL_STARTTIME).Value)
-            lst.List(lst.ListCount - 1, 2) = CStr(ws.Cells(i, COL_FINTIME).Value)
-            lst.List(lst.ListCount - 1, 3) = CStr(ws.Cells(i, COL_MAXIC).Value)
-            On Error GoTo ErrHandler
-            lFound = lFound + 1
+        If InStr(1, sRowAnesth, sAnesth, vbTextCompare) > 0 Then
+            ' Date comparison: handle both text "DD/MM/YYYY" and numeric date serial
+            ' (older records may have been stored as a numeric serial by Excel)
+            Dim bDateMatch As Boolean
+            Dim dtRowDate As Date
+            Dim vDateCell As Variant
+            vDateCell = ws.Cells(i, COL_DATE).Value
+            If IsNumeric(vDateCell) And Not IsEmpty(vDateCell) Then
+                dtRowDate = CDate(vDateCell)
+                bDateMatch = (DateValue(dtRowDate) = DateValue(dtDate))
+            Else
+                bDateMatch = TryParseDateDMY(Trim(CStr(vDateCell)), dtRowDate) And _
+                             (DateValue(dtRowDate) = DateValue(dtDate))
+            End If
+
+            If bDateMatch Then
+                On Error Resume Next
+                lst.AddItem CStr(ws.Cells(i, COL_PROCCODE).Value)
+                lst.List(lst.ListCount - 1, 1) = CStr(ws.Cells(i, COL_STARTTIME).Value)
+                lst.List(lst.ListCount - 1, 2) = CStr(ws.Cells(i, COL_FINTIME).Value)
+                lst.List(lst.ListCount - 1, 3) = CStr(ws.Cells(i, COL_MAXIC).Value)
+                On Error GoTo ErrHandler
+                lFound = lFound + 1
+            End If
         End If
     Next i
 
     On Error Resume Next
     If lFound = 0 Then
         lblStatus.Caption = "No records found."
-        MsgBox "No records found for " & sAnesth & " on " & sDateStr & ".", _
+        MsgBox "No records found for " & sAnesth & " on " & Format(dtDate, "DD/MM/YYYY") & ".", _
                vbInformation, "Search Results"
     Else
         lblStatus.Caption = lFound & " record(s) found."

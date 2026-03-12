@@ -276,17 +276,29 @@ ErrHandler:
 End Function
 
 '------------------------------------------------------------------------------
-' GetUserData - Gets data for a specific user and date
-' Tries network share first, falls back to local DailyDatabase
+' GetUserData - Gets records for a specific anesthesiologist on a given date.
+'
+' Strategy:
+'   1. Network: read the current Windows user's daily file (files are named
+'      after the submitting Windows user, not the anesthesiologist), then
+'      filter rows by anesthesiologist name.
+'   2. Local fallback: search DailyDatabase directly.
+'
+' COL_DATE handling: stored as text "DD/MM/YYYY" for new records, but may be
+' a numeric date serial in older records — both cases are handled.
 '------------------------------------------------------------------------------
-Private Function GetUserData(ByVal sUserName As String, ByVal dtDate As Date) As Variant
-    ' Try network share first
+Private Function GetUserData(ByVal sAnesthName As String, ByVal dtDate As Date) As Variant
+    ' Try network share — use Windows username, not anesthesiologist name
     If IsNetworkAvailable() Then
-        Dim vNetData As Variant
-        vNetData = ReadUserDailyData(sUserName, dtDate)
-        If Not IsEmpty(vNetData) Then
-            GetUserData = vNetData
-            Exit Function
+        Dim vNetRaw As Variant
+        vNetRaw = ReadUserDailyData(GetCurrentUser(), dtDate)
+        If Not IsEmpty(vNetRaw) Then
+            Dim vFiltered As Variant
+            vFiltered = FilterNetDataByAnesth(vNetRaw, sAnesthName)
+            If Not IsEmpty(vFiltered) Then
+                GetUserData = vFiltered
+                Exit Function
+            End If
         End If
     End If
 
@@ -302,17 +314,14 @@ Private Function GetUserData(ByVal sUserName As String, ByVal dtDate As Date) As
         Exit Function
     End If
 
-    ' Count matching records first
+    ' Count matching records (robust date comparison handles text and numeric)
     Dim lCount As Long
     lCount = 0
     Dim i As Long
     For i = 2 To lastRow
-        If CStr(ws.Cells(i, COL_ANESTH).Value) = sUserName Then
-            Dim dtRow As Date
-            If TryParseDate(CStr(ws.Cells(i, COL_DATE).Value), dtRow) Then
-                If dtRow = dtDate Then
-                    lCount = lCount + 1
-                End If
+        If CStr(ws.Cells(i, COL_ANESTH).Value) = sAnesthName Then
+            If RowDateMatchesDate(ws, i, dtDate) Then
+                lCount = lCount + 1
             End If
         End If
     Next i
@@ -322,27 +331,91 @@ Private Function GetUserData(ByVal sUserName As String, ByVal dtDate As Date) As
         Exit Function
     End If
 
-    ' Build array of matching records
+    ' Build result array
     Dim vResult() As Variant
     ReDim vResult(1 To lCount, 1 To NUM_COLUMNS)
 
     Dim lIdx As Long
     lIdx = 0
     For i = 2 To lastRow
-        If CStr(ws.Cells(i, COL_ANESTH).Value) = sUserName Then
-            If TryParseDate(CStr(ws.Cells(i, COL_DATE).Value), dtRow) Then
-                If dtRow = dtDate Then
-                    lIdx = lIdx + 1
-                    Dim j As Long
-                    For j = 1 To NUM_COLUMNS
-                        vResult(lIdx, j) = ws.Cells(i, j).Value
-                    Next j
-                End If
+        If CStr(ws.Cells(i, COL_ANESTH).Value) = sAnesthName Then
+            If RowDateMatchesDate(ws, i, dtDate) Then
+                lIdx = lIdx + 1
+                Dim j As Long
+                For j = 1 To NUM_COLUMNS
+                    vResult(lIdx, j) = ws.Cells(i, j).Value
+                Next j
             End If
         End If
     Next i
 
     GetUserData = vResult
+End Function
+
+'------------------------------------------------------------------------------
+' FilterNetDataByAnesth - Filters a network data array to one anesthesiologist
+'------------------------------------------------------------------------------
+Private Function FilterNetDataByAnesth(ByVal vData As Variant, _
+                                        ByVal sAnesth As String) As Variant
+    If Not IsArray(vData) Then
+        FilterNetDataByAnesth = Empty
+        Exit Function
+    End If
+
+    Dim lCount As Long
+    Dim i As Long
+    For i = 1 To UBound(vData, 1)
+        If CStr(vData(i, COL_ANESTH)) = sAnesth Then lCount = lCount + 1
+    Next i
+
+    If lCount = 0 Then
+        FilterNetDataByAnesth = Empty
+        Exit Function
+    End If
+
+    Dim vResult() As Variant
+    ReDim vResult(1 To lCount, 1 To UBound(vData, 2))
+    Dim lIdx As Long
+    lIdx = 0
+    Dim j As Long
+    For i = 1 To UBound(vData, 1)
+        If CStr(vData(i, COL_ANESTH)) = sAnesth Then
+            lIdx = lIdx + 1
+            For j = 1 To UBound(vData, 2)
+                vResult(lIdx, j) = vData(i, j)
+            Next j
+        End If
+    Next i
+
+    FilterNetDataByAnesth = vResult
+End Function
+
+'------------------------------------------------------------------------------
+' RowDateMatchesDate - Compares COL_DATE of a DailyDatabase row to a target date.
+' Handles both text "DD/MM/YYYY" storage and numeric Excel date serial storage.
+'------------------------------------------------------------------------------
+Private Function RowDateMatchesDate(ByVal ws As Worksheet, ByVal lRow As Long, _
+                                     ByVal dtTarget As Date) As Boolean
+    On Error GoTo NoMatch
+
+    Dim vCell As Variant
+    vCell = ws.Cells(lRow, COL_DATE).Value
+
+    Dim dtRow As Date
+    If IsNumeric(vCell) And Not IsEmpty(vCell) Then
+        dtRow = CDate(vCell)
+    Else
+        If Not TryParseDateDMY(Trim(CStr(vCell)), dtRow) Then
+            RowDateMatchesDate = False
+            Exit Function
+        End If
+    End If
+
+    RowDateMatchesDate = (DateValue(dtRow) = DateValue(dtTarget))
+    Exit Function
+
+NoMatch:
+    RowDateMatchesDate = False
 End Function
 
 '------------------------------------------------------------------------------
