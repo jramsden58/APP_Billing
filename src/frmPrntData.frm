@@ -39,8 +39,8 @@ Attribute VB_Exposed = False
 '==============================================================================
 Option Explicit
 
-' Master anesthesiologist list for filter-as-you-type
-Private m_aAnesthNames() As String
+' Anesthesiologist list data (two columns: name, MSP#) — mirrors frmSaveData
+Private m_aAnesth As Variant
 Private m_sSearchAnesth As String
 
 ' Flag to prevent recursive formatting in Change events
@@ -74,12 +74,9 @@ Private Sub UserForm_Initialize()
     Me.Controls("txtShftFinTime").Value = "HHMMhr"
     On Error GoTo ErrHandler
 
-    ' Configure lstAnesth for manual filter-as-you-type
+    ' Configure lstAnesth as two-column (name + MSP#) — same as frmSaveData
     sStep = "Configuring anesthesiologist list"
-    On Error Resume Next
-    lstAnesth.MatchEntry = fmMatchEntryNone
-    lstAnesth.RowSource = ""
-    On Error GoTo ErrHandler
+    SetupTwoColumnListBox lstAnesth, "80;80"
 
     ' Verify LookupLists sheet exists
     sStep = "Opening LookupLists sheet"
@@ -96,41 +93,13 @@ Private Sub UserForm_Initialize()
         Exit Sub
     End If
 
-    ' Load anesthesiologist names into master array
+    ' Load anesthesiologist names + MSP numbers into two-column array
     sStep = "Loading anesthesiologist names"
-    Dim lastRow As Long
-    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    m_aAnesth = LoadTwoColumnsToArray(ws, 1, 2)     ' Columns A (name), B (MSP#)
 
-    Dim lCount As Long
-    Dim i As Long
-    Dim sCellVal As String
-    lCount = 0
-    For i = 2 To lastRow
-        sCellVal = ""
-        On Error Resume Next
-        sCellVal = Trim(CStr(ws.Cells(i, 1).Value))
-        On Error GoTo ErrHandler
-        If Len(sCellVal) > 0 Then lCount = lCount + 1
-    Next i
-
-    If lCount > 0 Then
-        ReDim m_aAnesthNames(1 To lCount)
-        Dim idx As Long
-        idx = 0
-        For i = 2 To lastRow
-            sCellVal = ""
-            On Error Resume Next
-            sCellVal = Trim(CStr(ws.Cells(i, 1).Value))
-            On Error GoTo ErrHandler
-            If Len(sCellVal) > 0 Then
-                idx = idx + 1
-                m_aAnesthNames(idx) = sCellVal
-            End If
-        Next i
-    Else
-        ReDim m_aAnesthNames(0 To 0)
-        m_aAnesthNames(0) = ""
-    End If
+    ' Populate list with all names on open
+    sStep = "Populating anesthesiologist list"
+    PopulateFullList2Col lstAnesth, m_aAnesth
 
     ' Clear result list if it exists
     On Error Resume Next
@@ -151,67 +120,8 @@ End Sub
 '==============================================================================
 
 Private Sub lstAnesth_KeyPress(ByVal KeyAscii As MSForms.ReturnInteger)
-    Select Case KeyAscii
-        Case 8 ' Backspace
-            If Len(m_sSearchAnesth) > 0 Then
-                m_sSearchAnesth = Left(m_sSearchAnesth, Len(m_sSearchAnesth) - 1)
-            End If
-        Case 27 ' Escape
-            m_sSearchAnesth = ""
-        Case Else
-            m_sSearchAnesth = m_sSearchAnesth & Chr(KeyAscii)
-    End Select
-
-    PopulateAnesthList m_sSearchAnesth
-
-    ' No matches: notify and reset to full list
-    If lstAnesth.ListCount = 0 And Len(m_sSearchAnesth) > 0 Then
-        MsgBox "No anesthesiologist found matching '" & m_sSearchAnesth & "'." & vbCrLf & _
-               "The list has been reset. Please try again.", _
-               vbExclamation, "Not Found"
-        m_sSearchAnesth = ""
-        PopulateAnesthList ""
-    End If
-
-    KeyAscii = 0
+    HandleListKeyPress2Col lstAnesth, m_aAnesth, m_sSearchAnesth, KeyAscii
 End Sub
-
-'------------------------------------------------------------------------------
-' PopulateAnesthList - Filters lstAnesth by prefix match on sFilter
-'------------------------------------------------------------------------------
-Private Sub PopulateAnesthList(ByVal sFilter As String)
-    On Error Resume Next
-    lstAnesth.Clear
-    If Not IsAnesthArrayReady() Then
-        On Error GoTo 0
-        Exit Sub
-    End If
-
-    Dim i As Long
-    Dim sLower As String
-    sLower = LCase(sFilter)
-    For i = LBound(m_aAnesthNames) To UBound(m_aAnesthNames)
-        If Len(m_aAnesthNames(i)) > 0 Then
-            If Len(sFilter) = 0 Or _
-               LCase(Left(m_aAnesthNames(i), Len(sFilter))) = sLower Then
-                lstAnesth.AddItem m_aAnesthNames(i)
-            End If
-        End If
-    Next i
-    If lstAnesth.ListCount = 1 Then lstAnesth.ListIndex = 0
-    On Error GoTo 0
-End Sub
-
-Private Function IsAnesthArrayReady() As Boolean
-    On Error GoTo NotReady
-    Dim n As Long
-    n = UBound(m_aAnesthNames)
-    IsAnesthArrayReady = (n >= LBound(m_aAnesthNames) And _
-                          Len(m_aAnesthNames(LBound(m_aAnesthNames))) > 0)
-    Exit Function
-NotReady:
-    IsAnesthArrayReady = False
-End Function
 
 '==============================================================================
 ' DATE FIELD - txtReportDate (DD/MM/YYYY, auto-formatted)
@@ -312,6 +222,117 @@ Private Sub txtShftFinTime_Change()
     If ctl Is Nothing Then Exit Sub
     If ctl.Value = "HHMMhr" Or Len(ctl.Value) = 0 Then Exit Sub
     FormatTimeField ctl
+End Sub
+
+'==============================================================================
+' LIST BOX HELPERS — identical to frmSaveData implementations
+'==============================================================================
+
+Private Sub SetupTwoColumnListBox(ByRef lst As MSForms.ListBox, ByVal sWidths As String)
+    On Error Resume Next
+    lst.ColumnCount = 2
+    lst.ColumnWidths = sWidths
+    lst.MatchEntry = fmMatchEntryNone
+    lst.RowSource = ""
+    On Error GoTo 0
+End Sub
+
+Private Function LoadTwoColumnsToArray(ByVal ws As Worksheet, ByVal lCol1 As Long, _
+                                       ByVal lCol2 As Long) As Variant
+    Dim lr1 As Long, lr2 As Long
+    lr1 = ws.Cells(ws.Rows.Count, lCol1).End(xlUp).Row
+    lr2 = ws.Cells(ws.Rows.Count, lCol2).End(xlUp).Row
+    Dim lastRow As Long
+    lastRow = IIf(lr1 > lr2, lr1, lr2)
+
+    Dim lCount As Long
+    Dim i As Long
+    For i = 2 To lastRow
+        If Len(Trim(CStr(ws.Cells(i, lCol1).Value))) > 0 Or _
+           Len(Trim(CStr(ws.Cells(i, lCol2).Value))) > 0 Then
+            lCount = lCount + 1
+        End If
+    Next i
+
+    If lCount = 0 Then
+        LoadTwoColumnsToArray = Empty
+        Exit Function
+    End If
+
+    Dim result() As String
+    ReDim result(1 To lCount, 1 To 2)
+    Dim idx As Long
+    For i = 2 To lastRow
+        Dim s1 As String, s2 As String
+        s1 = Trim(CStr(ws.Cells(i, lCol1).Value))
+        s2 = Trim(CStr(ws.Cells(i, lCol2).Value))
+        If Len(s1) > 0 Or Len(s2) > 0 Then
+            idx = idx + 1
+            result(idx, 1) = s1
+            result(idx, 2) = s2
+        End If
+    Next i
+
+    LoadTwoColumnsToArray = result
+End Function
+
+Private Sub PopulateFullList2Col(ByRef lst As MSForms.ListBox, ByRef vItems As Variant)
+    lst.Clear
+    If IsEmpty(vItems) Then Exit Sub
+    Dim i As Long
+    For i = LBound(vItems, 1) To UBound(vItems, 1)
+        lst.AddItem vItems(i, 1)
+        lst.List(lst.ListCount - 1, 1) = vItems(i, 2)
+    Next i
+End Sub
+
+Private Sub FilterListBox2Col(ByRef lst As MSForms.ListBox, ByRef vItems As Variant, _
+                              ByVal sSearch As String)
+    lst.Clear
+    If IsEmpty(vItems) Then Exit Sub
+    If Len(sSearch) = 0 Then
+        Dim j As Long
+        For j = LBound(vItems, 1) To UBound(vItems, 1)
+            lst.AddItem vItems(j, 1)
+            lst.List(lst.ListCount - 1, 1) = vItems(j, 2)
+        Next j
+        Exit Sub
+    End If
+    Dim i As Long
+    Dim sLower As String
+    sLower = LCase(sSearch)
+    For i = LBound(vItems, 1) To UBound(vItems, 1)
+        If LCase(Left(vItems(i, 1), Len(sSearch))) = sLower Or _
+           LCase(Left(vItems(i, 2), Len(sSearch))) = sLower Then
+            lst.AddItem vItems(i, 1)
+            lst.List(lst.ListCount - 1, 1) = vItems(i, 2)
+        End If
+    Next i
+    If lst.ListCount = 1 Then lst.ListIndex = 0
+End Sub
+
+Private Sub HandleListKeyPress2Col(ByRef lst As MSForms.ListBox, ByRef vItems As Variant, _
+                                   ByRef sSearch As String, ByVal KeyAscii As MSForms.ReturnInteger)
+    Select Case KeyAscii
+        Case 8  ' Backspace
+            If Len(sSearch) > 0 Then sSearch = Left(sSearch, Len(sSearch) - 1)
+        Case 27 ' Escape
+            sSearch = ""
+        Case Else
+            sSearch = sSearch & Chr(KeyAscii)
+    End Select
+
+    FilterListBox2Col lst, vItems, sSearch
+
+    If lst.ListCount = 0 And Len(sSearch) > 0 Then
+        MsgBox "No matching item found for '" & sSearch & "'." & vbCrLf & _
+               "The list has been reset. Please try again.", _
+               vbExclamation, "Item Not Found"
+        sSearch = ""
+        FilterListBox2Col lst, vItems, sSearch
+    End If
+
+    KeyAscii = 0
 End Sub
 
 '==============================================================================
