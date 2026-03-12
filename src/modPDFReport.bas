@@ -10,7 +10,7 @@ Option Explicit
 
 ' ORReportingForm layout constants — verified against actual sheet 2026-03-11
 ' Header fields
-Private Const FORM_NAME_CELL As String = "A4"        ' Anesthesiologist name
+Private Const FORM_NAME_CELL As String = "C4"        ' Anesthesiologist name
 Private Const FORM_MSP_CELL As String = "L4"         ' MSP Billing #
 Private Const FORM_SITE_CELL As String = "H5"         ' Site (RCH / ERH)
 Private Const FORM_SHIFT_CELL As String = "G6"        ' Shift Name
@@ -24,6 +24,7 @@ Private Const FORM_SHIFTFIN_CELL As String = "L8"     ' Shift Finish Time
 Private Const PROC_START_ROWS As String = "10,17,24,31,38,45"
 ' Within each block, relative row offsets used in PopulateORForm:
 '   lR+0: ProcCode(H), ICLevel(L)
+'   lR+1: StartTime(H), FinishTime(L)
 '   lR+2: WCB#(G)
 '   lR+3: DateOfInj(L)
 '   lR+4: InjSide(L)
@@ -477,6 +478,10 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
         ws.Cells(lProcRow,     8).Value = vData(idx, COL_PROCCODE)     ' Col H
         ws.Cells(lProcRow,    12).Value = vData(idx, COL_MAXIC)        ' Col L
 
+        ' Row lR+1: StartTime(H), FinishTime(L)
+        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_STARTTIME)   ' Col H
+        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_FINTIME)     ' Col L
+
         ' Row lR+2: WCB#(G)
         ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)      ' Col G
 
@@ -575,9 +580,11 @@ Public Sub ClearORForm(ByVal ws As Worksheet)
         Dim lRow As Long
         lRow = CLng(procRows(i))
 
-        ws.Cells(lRow,     8).ClearContents   ' ProcCode  (H, lR+0)
-        ws.Cells(lRow,    12).ClearContents   ' ICLevel   (L, lR+0)
-        ws.Cells(lRow + 2, 7).ClearContents   ' WCB#      (G, lR+2)
+        ws.Cells(lRow,     8).ClearContents   ' ProcCode   (H, lR+0)
+        ws.Cells(lRow,    12).ClearContents   ' ICLevel    (L, lR+0)
+        ws.Cells(lRow + 1, 8).ClearContents   ' StartTime  (H, lR+1)
+        ws.Cells(lRow + 1,12).ClearContents   ' FinishTime (L, lR+1)
+        ws.Cells(lRow + 2, 7).ClearContents   ' WCB#       (G, lR+2)
         ws.Cells(lRow + 3,12).ClearContents   ' DateOfInj (L, lR+3)
         ws.Cells(lRow + 4,12).ClearContents   ' InjSide   (L, lR+4)
         ws.Cells(lRow + 5,12).ClearContents   ' InjType   (L, lR+5)
@@ -616,6 +623,9 @@ Public Sub LabelORFormCells()
     ' Row lR+0
     ws.Cells(lR,     8).Value = "[ProcCode]"
     ws.Cells(lR,    12).Value = "[ICLevel]"
+    ' Row lR+1
+    ws.Cells(lR + 1, 8).Value = "[StartTime]"
+    ws.Cells(lR + 1,12).Value = "[FinishTime]"
     ' Row lR+2
     ws.Cells(lR + 2, 7).Value = "[WCB#]"
     ' Row lR+3
