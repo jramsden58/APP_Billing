@@ -313,7 +313,7 @@ End Sub
 '------------------------------------------------------------------------------
 Public Sub ReturnToPrntDataForm()
     RemoveReturnButton
-    frmPrntData.Visible = True
+    frmPrntData.Show
 End Sub
 
 '------------------------------------------------------------------------------
