@@ -518,7 +518,7 @@ Private Sub cmdPreview_Click()
                      sShiftStart:=sShiftStart, sShiftFin:=sShiftFin
     ' GenerateDailyPDF already activates the sheet; add button then hide form
     AddReturnButton
-    Me.Visible = False
+    Me.Hide
     Exit Sub
 
 ErrHandler:
