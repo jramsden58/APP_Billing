@@ -132,10 +132,6 @@ Private Sub UserForm_Initialize()
         m_aAnesthNames(0) = ""
     End If
 
-    ' Populate list with all names (no pre-selection - user picks manually)
-    sStep = "Populating anesthesiologist list"
-    PopulateAnesthList ""
-
     ' Clear result list if it exists
     On Error Resume Next
     Me.Controls("lstDataBse").Clear
