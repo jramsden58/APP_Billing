@@ -23,8 +23,7 @@ Private Const FORM_SHIFTFIN_CELL As String = "L8"     ' Shift Finish Time
 ' Procedure block starting rows (6 blocks, each block spans rows lR to lR+5)
 Private Const PROC_START_ROWS As String = "10,17,24,31,38,45"
 ' Within each block, relative row offsets used in PopulateORForm:
-'   lR+0: Consult(A), ProcCode(H), ICLevel(L)
-'   lR+1: StartTime(H), FinishTime(L)
+'   lR+0: ProcCode(H), ICLevel(L)
 '   lR+2: WCB#(G)
 '   lR+3: DateOfInj(L)
 '   lR+4: InjSide(L)
@@ -474,14 +473,9 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
         Dim lProcRow As Long
         lProcRow = CLng(procRows(idx - 1))
 
-        ' Row lR+0: Consult(A), ProcCode(L), ICLevel(L)
-        ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)      ' Col A
-        ws.Cells(lProcRow,     8).Value = vData(idx, COL_PROCCODE)     ' Col H     ' Col L
+        ' Row lR+0: ProcCode(H), ICLevel(L)
+        ws.Cells(lProcRow,     8).Value = vData(idx, COL_PROCCODE)     ' Col H
         ws.Cells(lProcRow,    12).Value = vData(idx, COL_MAXIC)        ' Col L
-
-        ' Row lR+1: StartTime(H), FinishTime(L)
-        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_STARTTIME)   ' Col H
-        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_FINTIME)     ' Col L
 
         ' Row lR+2: WCB#(G)
         ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)      ' Col G
@@ -535,14 +529,9 @@ Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String
         Dim lProcRow As Long
         lProcRow = CLng(procRows(blockIdx))
 
-        ' Row lR+0: Consult(A), ProcCode(L), ICLevel(L)
-        ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)
+        ' Row lR+0: ProcCode(H), ICLevel(L)
         ws.Cells(lProcRow,     8).Value = vData(idx, COL_PROCCODE)     ' Col H
         ws.Cells(lProcRow,    12).Value = vData(idx, COL_MAXIC)
-
-        ' Row lR+1: StartTime(H), FinishTime(L)
-        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_STARTTIME)
-        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_FINTIME)
 
         ' Row lR+2: WCB#(G)
         ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)
@@ -621,12 +610,8 @@ Public Sub LabelORFormCells()
     lR = CLng(procRows(0))
 
     ' Row lR+0
-    ws.Cells(lR,     1).Value = "[Consult]"
     ws.Cells(lR,     8).Value = "[ProcCode]"
     ws.Cells(lR,    12).Value = "[ICLevel]"
-    ' Row lR+1
-    ws.Cells(lR + 1, 8).Value = "[StartTime]"
-    ws.Cells(lR + 1,12).Value = "[FinishTime]"
     ' Row lR+2
     ws.Cells(lR + 2, 7).Value = "[WCB#]"
     ' Row lR+3
