@@ -654,7 +654,8 @@ Public Sub ClearORFormStaticCells()
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("ORReportingForm")
     Dim cell As Variant
-    For Each cell In Array("C3","C5","C6","L3","L6","A10","C10","C12","E12","F12","I12","J12","K12")
+    For Each cell In Array("C3","C5","C6","L3","L6","A10","C10","C12","E12","F12","I12","J12","K12", _
+                           "G10","H10","I10","J10","K10","G11","I11")
         ws.Range(CStr(cell)).ClearContents
     Next cell
     MsgBox "Static cells cleared from ORReportingForm.", vbInformation
