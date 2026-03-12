@@ -105,11 +105,13 @@ Public Function GenerateDailyPDF(ByVal sUserName As String, _
             ExportToPDF sPagePath
         Next lPage
 
+        ClearORForm ThisWorkbook.Sheets("ORReportingForm")
         MsgBox "Report generated with " & lPages & " pages." & vbCrLf & _
                "Note: Due to Excel PDF limitations, each page is a separate file." & vbCrLf & vbCrLf & _
                "Files saved to: " & Left(sPDFPath, InStrRev(sPDFPath, "\")), _
                vbInformation, "PDF Report"
     Else
+        ClearORForm ThisWorkbook.Sheets("ORReportingForm")
         MsgBox "PDF report saved to:" & vbCrLf & sPDFPath, vbInformation, "PDF Report"
     End If
 
@@ -559,7 +561,7 @@ End Sub
 '------------------------------------------------------------------------------
 ' ClearORForm - Clears all data cells in the ORReportingForm
 '------------------------------------------------------------------------------
-Private Sub ClearORForm(ByVal ws As Worksheet)
+Public Sub ClearORForm(ByVal ws As Worksheet)
     On Error Resume Next
 
     ' Clear header fields
@@ -584,6 +586,84 @@ Private Sub ClearORForm(ByVal ws As Worksheet)
         ws.Range(ws.Cells(lRow, 1), ws.Cells(lRow + 2, 12)).ClearContents
     Next i
 
+    On Error GoTo 0
+End Sub
+
+'------------------------------------------------------------------------------
+' LabelORFormCells - Diagnostic: writes field name tags into every cell that
+' PopulateORForm writes to.  Run this macro, then compare the [labels] on the
+' ORReportingForm sheet with the actual printed form to identify which
+' constants need updating.
+'------------------------------------------------------------------------------
+Public Sub LabelORFormCells()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("ORReportingForm")
+
+    ' Header fields
+    ws.Range(FORM_NAME_CELL).Value      = "[Anesthesiologist]"
+    ws.Range(FORM_MSP_CELL).Value       = "[MSP#]"
+    ws.Range(FORM_SITE_CELL).Value      = "[Site]"
+    ws.Range(FORM_SHIFT_CELL).Value     = "[ShiftName]"
+    ws.Range(FORM_SHIFTTYPE_CELL).Value = "[ShiftType]"
+    ws.Range(FORM_ONCALL_CELL).Value    = "[OnCall]"
+    ws.Range(FORM_DATE_CELL).Value      = "[DateOfService]"
+
+    ' Procedure block 1 only
+    Dim procRows() As String
+    procRows = Split(PROC_START_ROWS, ",")
+    Dim lR As Long
+    lR = CLng(procRows(0))
+
+    ws.Cells(lR,     1).Value = "[Consult]"
+    ws.Cells(lR,     3).Value = "[ProcCode]"
+    ws.Cells(lR,     5).Value = "[ICLevel]"
+    ws.Cells(lR,     7).Value = "[Mod1]"
+    ws.Cells(lR,     8).Value = "[Mod2]"
+    ws.Cells(lR,     9).Value = "[Mod3]"
+    ws.Cells(lR,    10).Value = "[Resus]"
+    ws.Cells(lR,    11).Value = "[Obs]"
+    ws.Cells(lR + 1, 7).Value = "[AcutePain]"
+    ws.Cells(lR + 1, 8).Value = "[ChronPain]"
+    ws.Cells(lR + 1, 9).Value = "[Misc]"
+    ws.Cells(lR + 2, 3).Value = "[StartTime]"
+    ws.Cells(lR + 2, 5).Value = "[FinishTime]"
+    ws.Cells(lR + 2, 7).Value = "[WCB#]"
+    ws.Cells(lR + 2, 9).Value = "[DateOfInj]"
+    ws.Cells(lR + 2,10).Value = "[InjSide]"
+    ws.Cells(lR + 2,11).Value = "[InjType]"
+
+    ws.Activate
+    MsgBox "Labels written to ORReportingForm." & vbCrLf & _
+           "Compare each [label] to the printed form field it should fill." & vbCrLf & _
+           "Report back which cells need to move and the constants will be updated.", _
+           vbInformation, "Layout Diagnostic"
+End Sub
+
+'------------------------------------------------------------------------------
+' AddReturnButton - Adds a floating "Return to Form" button on ORReportingForm
+'------------------------------------------------------------------------------
+Public Sub AddReturnButton()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("ORReportingForm")
+    RemoveReturnButton  ' clear any prior instance
+    Dim shp As Shape
+    Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, _
+                                  ws.Cells(1, 10).Left, ws.Cells(1, 10).Top, 120, 24)
+    shp.Name = "btnReturnToForm"
+    shp.TextFrame.Characters.Text = "Return to Form"
+    shp.Fill.ForeColor.RGB = RGB(68, 114, 196)
+    shp.TextFrame.Characters.Font.Color = RGB(255, 255, 255)
+    shp.OnAction = "ReturnToPrntDataForm"
+End Sub
+
+'------------------------------------------------------------------------------
+' RemoveReturnButton - Removes the "Return to Form" button if it exists
+'------------------------------------------------------------------------------
+Public Sub RemoveReturnButton()
+    On Error Resume Next
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("ORReportingForm")
+    ws.Shapes("btnReturnToForm").Delete
     On Error GoTo 0
 End Sub
 

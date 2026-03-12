@@ -301,10 +301,19 @@ Public Sub Show_Form1()
 End Sub
 
 '------------------------------------------------------------------------------
-' Show_Form2 - Opens the Print Data / PDF form
+' Show_Form2 - Opens the Print Data / PDF form (modeless so user can freely
+' switch between the floating form and the ORReportingForm sheet)
 '------------------------------------------------------------------------------
 Public Sub Show_Form2()
-    frmPrntData.Show
+    frmPrntData.Show vbModeless
+End Sub
+
+'------------------------------------------------------------------------------
+' ReturnToPrntDataForm - Called by the "Return to Form" button on ORReportingForm
+'------------------------------------------------------------------------------
+Public Sub ReturnToPrntDataForm()
+    RemoveReturnButton
+    frmPrntData.Visible = True
 End Sub
 
 '------------------------------------------------------------------------------

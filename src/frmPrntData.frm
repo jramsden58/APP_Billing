@@ -490,6 +490,8 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' Preview Button
+' Populates ORReportingForm, hides this form, and adds a "Return to Form"
+' button on the sheet so the user can switch back easily.
 '------------------------------------------------------------------------------
 Private Sub cmdPreview_Click()
     On Error GoTo ErrHandler
@@ -504,10 +506,10 @@ Private Sub cmdPreview_Click()
     lblStatus.Caption = "Generating preview..."
     DoEvents
 
-    Dim sResult As String
-    sResult = GenerateDailyPDF(sAnesth, dtDate, bPreview:=True)
-
-    lblStatus.Caption = "Preview ready. Check the ORReportingForm sheet."
+    GenerateDailyPDF sAnesth, dtDate, bPreview:=True
+    ' GenerateDailyPDF already activates the sheet; add button then hide form
+    AddReturnButton
+    Me.Visible = False
     Exit Sub
 
 ErrHandler:
@@ -517,6 +519,8 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' Generate PDF Button
+' Generates PDF, clears ORReportingForm, and opens the PDF automatically.
+' The form stays visible so the user can generate another or exit normally.
 '------------------------------------------------------------------------------
 Private Sub cmdGeneratePDF_Click()
     On Error GoTo ErrHandler
@@ -536,12 +540,11 @@ Private Sub cmdGeneratePDF_Click()
 
     If Len(sResult) > 0 Then
         lblStatus.Caption = "PDF saved: " & sResult
-        If MsgBox("PDF generated successfully. Open the file?", _
-                  vbYesNo + vbQuestion, "PDF Ready") = vbYes Then
-            On Error Resume Next
-            Shell "explorer.exe """ & sResult & """", vbNormalFocus
-            On Error GoTo 0
-        End If
+        ' Remove any stale Return button, then open the PDF automatically
+        RemoveReturnButton
+        On Error Resume Next
+        Shell "explorer.exe """ & sResult & """", vbNormalFocus
+        On Error GoTo ErrHandler
     Else
         lblStatus.Caption = "PDF generation failed or no data found."
     End If
