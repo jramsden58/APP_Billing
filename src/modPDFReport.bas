@@ -23,7 +23,7 @@ Private Const FORM_SHIFTFIN_CELL As String = "L8"     ' Shift Finish Time
 ' Procedure block starting rows (6 blocks, each block spans rows lR to lR+5)
 Private Const PROC_START_ROWS As String = "10,17,24,31,38,45"
 ' Within each block, relative row offsets used in PopulateORForm:
-'   lR+0: Consult(A), ProcCode(L), ICLevel(L)
+'   lR+0: Consult(A), ProcCode(H), ICLevel(L)
 '   lR+1: StartTime(H), FinishTime(L)
 '   lR+2: WCB#(G)
 '   lR+3: DateOfInj(L)
@@ -476,7 +476,7 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
 
         ' Row lR+0: Consult(A), ProcCode(L), ICLevel(L)
         ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)      ' Col A
-        ws.Cells(lProcRow,    12).Value = vData(idx, COL_PROCCODE)     ' Col L
+        ws.Cells(lProcRow,     8).Value = vData(idx, COL_PROCCODE)     ' Col H     ' Col L
         ws.Cells(lProcRow,    12).Value = vData(idx, COL_MAXIC)        ' Col L
 
         ' Row lR+1: StartTime(H), FinishTime(L)
@@ -537,7 +537,7 @@ Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String
 
         ' Row lR+0: Consult(A), ProcCode(L), ICLevel(L)
         ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)
-        ws.Cells(lProcRow,    12).Value = vData(idx, COL_PROCCODE)
+        ws.Cells(lProcRow,     8).Value = vData(idx, COL_PROCCODE)     ' Col H
         ws.Cells(lProcRow,    12).Value = vData(idx, COL_MAXIC)
 
         ' Row lR+1: StartTime(H), FinishTime(L)
@@ -622,7 +622,8 @@ Public Sub LabelORFormCells()
 
     ' Row lR+0
     ws.Cells(lR,     1).Value = "[Consult]"
-    ws.Cells(lR,    12).Value = "[ProcCode/ICLevel]"
+    ws.Cells(lR,     8).Value = "[ProcCode]"
+    ws.Cells(lR,    12).Value = "[ICLevel]"
     ' Row lR+1
     ws.Cells(lR + 1, 8).Value = "[StartTime]"
     ws.Cells(lR + 1,12).Value = "[FinishTime]"
