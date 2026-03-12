@@ -566,7 +566,7 @@ Public Sub ClearORForm(ByVal ws As Worksheet)
     ws.Range(FORM_SHIFTSTART_CELL).Value = ""
     ws.Range(FORM_SHIFTFIN_CELL).Value = ""
 
-    ' Clear all procedure blocks (6 rows each: lR+0 through lR+5)
+    ' Clear only the specific cells VBA writes data into (preserves template layout)
     Dim procRows() As String
     procRows = Split(PROC_START_ROWS, ",")
 
@@ -575,8 +575,12 @@ Public Sub ClearORForm(ByVal ws As Worksheet)
         Dim lRow As Long
         lRow = CLng(procRows(i))
 
-        ' Clear 6 rows per block, columns A through L
-        ws.Range(ws.Cells(lRow, 1), ws.Cells(lRow + 5, 12)).ClearContents
+        ws.Cells(lRow,     8).ClearContents   ' ProcCode  (H, lR+0)
+        ws.Cells(lRow,    12).ClearContents   ' ICLevel   (L, lR+0)
+        ws.Cells(lRow + 2, 7).ClearContents   ' WCB#      (G, lR+2)
+        ws.Cells(lRow + 3,12).ClearContents   ' DateOfInj (L, lR+3)
+        ws.Cells(lRow + 4,12).ClearContents   ' InjSide   (L, lR+4)
+        ws.Cells(lRow + 5,12).ClearContents   ' InjType   (L, lR+5)
     Next i
 
     On Error GoTo 0
