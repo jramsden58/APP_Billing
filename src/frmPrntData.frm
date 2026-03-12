@@ -506,7 +506,16 @@ Private Sub cmdPreview_Click()
     lblStatus.Caption = "Generating preview..."
     DoEvents
 
-    GenerateDailyPDF sAnesth, dtDate, bPreview:=True
+    Dim sShiftStart As String, sShiftFin As String
+    On Error Resume Next
+    sShiftStart = Me.Controls("txtShftSrtTime").Value
+    If sShiftStart = "HHMMhr" Then sShiftStart = ""
+    sShiftFin = Me.Controls("txtShftFinTime").Value
+    If sShiftFin = "HHMMhr" Then sShiftFin = ""
+    On Error GoTo ErrHandler
+
+    GenerateDailyPDF sAnesth, dtDate, bPreview:=True, _
+                     sShiftStart:=sShiftStart, sShiftFin:=sShiftFin
     ' GenerateDailyPDF already activates the sheet; add button then hide form
     AddReturnButton
     Me.Visible = False
@@ -535,8 +544,17 @@ Private Sub cmdGeneratePDF_Click()
     lblStatus.Caption = "Generating PDF..."
     DoEvents
 
+    Dim sShiftStart As String, sShiftFin As String
+    On Error Resume Next
+    sShiftStart = Me.Controls("txtShftSrtTime").Value
+    If sShiftStart = "HHMMhr" Then sShiftStart = ""
+    sShiftFin = Me.Controls("txtShftFinTime").Value
+    If sShiftFin = "HHMMhr" Then sShiftFin = ""
+    On Error GoTo ErrHandler
+
     Dim sResult As String
-    sResult = GenerateDailyPDF(sAnesth, dtDate, bPreview:=False)
+    sResult = GenerateDailyPDF(sAnesth, dtDate, bPreview:=False, _
+                               sShiftStart:=sShiftStart, sShiftFin:=sShiftFin)
 
     If Len(sResult) > 0 Then
         lblStatus.Caption = "PDF saved: " & sResult

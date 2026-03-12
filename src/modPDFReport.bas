@@ -8,22 +8,28 @@ Attribute VB_Name = "modPDFReport"
 '==============================================================================
 Option Explicit
 
-' ORReportingForm layout constants (based on existing sheet structure)
+' ORReportingForm layout constants — verified against actual sheet 2026-03-11
 ' Header fields
-Private Const FORM_NAME_CELL As String = "C3"       ' Anesthesiologist name
-Private Const FORM_MSP_CELL As String = "L3"        ' MSP Billing #
-Private Const FORM_SITE_CELL As String = "C5"        ' Site
-Private Const FORM_SHIFT_CELL As String = "C6"       ' Shift Name
-Private Const FORM_SHIFTTYPE_CELL As String = "H6"   ' Shift Type
-Private Const FORM_ONCALL_CELL As String = "L6"      ' On Call
-Private Const FORM_DATE_CELL As String = "C8"        ' Date of Service
+Private Const FORM_NAME_CELL As String = "A4"        ' Anesthesiologist name
+Private Const FORM_MSP_CELL As String = "L4"         ' MSP Billing #
+Private Const FORM_SITE_CELL As String = "H5"         ' Site (RCH / ERH)
+Private Const FORM_SHIFT_CELL As String = "H6"        ' Shift Name
+Private Const FORM_SHIFTTYPE_CELL As String = "H7"    ' Shift Type
+Private Const FORM_ONCALL_CELL As String = "L7"       ' On Call
+Private Const FORM_DATE_CELL As String = "C8"         ' Date of Service
+Private Const FORM_SHIFTSTART_CELL As String = "H8"   ' Shift Start Time
+Private Const FORM_SHIFTFIN_CELL As String = "L8"     ' Shift Finish Time
 
-' Procedure block starting rows (6 blocks, each ~7 rows)
+' Procedure block starting rows (6 blocks, each block spans rows lR to lR+5)
 Private Const PROC_START_ROWS As String = "10,17,24,31,38,45"
-' Within each block, relative offsets:
-'   Row +0: Consult, Procedure Code, IC Level, fee codes
-'   Row +1: Procedure Start/Finish times, WCB fields
-'   (Exact layout follows existing ORReportingForm structure)
+' Within each block, relative row offsets used in PopulateORForm:
+'   lR+0: Consult(A), Mod1(G), Mod2(H), Mod3(I), Resus(J), Obs(K)
+'   lR+1: AcutePain(G), ProcCode(H), ChronPain(H*), Misc(I), ICLevel(L)
+'   lR+2: WCB#(G), StartTime(H), FinishTime(L)
+'   lR+3: DateOfInj(L)
+'   lR+4: InjSide(L)
+'   lR+5: InjType(L)
+'  (* ProcCode and ChronPain share col H row lR+1 per actual form layout)
 
 '------------------------------------------------------------------------------
 ' GenerateDailyPDF - Main entry point for PDF report generation
@@ -37,7 +43,9 @@ Private Const PROC_START_ROWS As String = "10,17,24,31,38,45"
 '------------------------------------------------------------------------------
 Public Function GenerateDailyPDF(ByVal sUserName As String, _
                                   ByVal dtDate As Date, _
-                                  Optional ByVal bPreview As Boolean = False) As String
+                                  Optional ByVal bPreview As Boolean = False, _
+                                  Optional ByVal sShiftStart As String = "", _
+                                  Optional ByVal sShiftFin As String = "") As String
     On Error GoTo ErrHandler
 
     ' Get data for this user and date
@@ -56,7 +64,7 @@ Public Function GenerateDailyPDF(ByVal sUserName As String, _
     sMSP = GetMSPNumber(sUserName)
 
     ' Populate the form
-    PopulateORForm vData, sUserName, sMSP, dtDate
+    PopulateORForm vData, sUserName, sMSP, dtDate, sShiftStart, sShiftFin
 
     If bPreview Then
         ' Activate the sheet for preview
@@ -97,7 +105,7 @@ Public Function GenerateDailyPDF(ByVal sUserName As String, _
             lStartIdx = ((lPage - 1) * 6) + 1
 
             ' Populate next batch of 6 records
-            PopulateORFormPage vData, sUserName, sMSP, dtDate, lStartIdx
+            PopulateORFormPage vData, sUserName, sMSP, dtDate, lStartIdx, sShiftStart, sShiftFin
 
             ' Append to PDF (save as separate file then note for user)
             Dim sPagePath As String
@@ -424,7 +432,9 @@ End Function
 ' PopulateORForm - Fills in the ORReportingForm sheet with data
 '------------------------------------------------------------------------------
 Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
-                           ByVal sMSP As String, ByVal dtDate As Date)
+                           ByVal sMSP As String, ByVal dtDate As Date, _
+                           Optional ByVal sShiftStart As String = "", _
+                           Optional ByVal sShiftFin As String = "")
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("ORReportingForm")
 
@@ -445,6 +455,10 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
             LCase(CStr(vData(1, COL_ONCALL) & "")) = "yes", "Yes", "No")
     End If
 
+    ' Shift start / finish times (from frmPrntData controls)
+    If Len(sShiftStart) > 0 Then ws.Range(FORM_SHIFTSTART_CELL).Value = sShiftStart
+    If Len(sShiftFin) > 0 Then ws.Range(FORM_SHIFTFIN_CELL).Value = sShiftFin
+
     ' Populate procedure blocks (up to 6)
     Dim procRows() As String
     procRows = Split(PROC_START_ROWS, ",")
@@ -461,44 +475,33 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
         Dim lProcRow As Long
         lProcRow = CLng(procRows(idx - 1))
 
-        ' Procedure Code
-        ws.Cells(lProcRow, 3).Value = vData(idx, COL_PROCCODE)        ' Col C
+        ' Row lR+0: Consult(A), Mod1(G), Mod2(H), Mod3(I), Resus(J), Obs(K)
+        ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)      ' Col A
+        ws.Cells(lProcRow,     7).Value = vData(idx, COL_MOD1)         ' Col G
+        ws.Cells(lProcRow,     8).Value = vData(idx, COL_MOD2)         ' Col H
+        ws.Cells(lProcRow,     9).Value = vData(idx, COL_MOD3)         ' Col I
+        ws.Cells(lProcRow,    10).Value = vData(idx, COL_RESUS)        ' Col J
+        ws.Cells(lProcRow,    11).Value = vData(idx, COL_OBS)          ' Col K
 
-        ' Consult
-        ws.Cells(lProcRow, 1).Value = vData(idx, COL_CONSULT)         ' Col A
+        ' Row lR+1: AcutePain(G), ProcCode(H), ChronPain(H), Misc(I), ICLevel(L)
+        ws.Cells(lProcRow + 1, 7).Value = vData(idx, COL_ACUTEPAIN)   ' Col G
+        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_PROCCODE)    ' Col H
+        ws.Cells(lProcRow + 1, 9).Value = vData(idx, COL_MISC)        ' Col I
+        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_MAXIC)       ' Col L
 
-        ' IC Level
-        ws.Cells(lProcRow, 5).Value = vData(idx, COL_MAXIC)           ' Col E
+        ' Row lR+2: WCB#(G), StartTime(H), FinishTime(L)
+        ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)      ' Col G
+        ws.Cells(lProcRow + 2, 8).Value = vData(idx, COL_STARTTIME)   ' Col H
+        ws.Cells(lProcRow + 2,12).Value = vData(idx, COL_FINTIME)     ' Col L
 
-        ' Modifiers
-        ws.Cells(lProcRow, 7).Value = vData(idx, COL_MOD1)            ' Col G
-        ws.Cells(lProcRow, 8).Value = vData(idx, COL_MOD2)            ' Col H
-        ws.Cells(lProcRow, 9).Value = vData(idx, COL_MOD3)            ' Col I
+        ' Row lR+3: DateOfInj(L)
+        ws.Cells(lProcRow + 3,12).Value = vData(idx, COL_WCBDATE)     ' Col L
 
-        ' Resuscitation
-        ws.Cells(lProcRow, 10).Value = vData(idx, COL_RESUS)          ' Col J
+        ' Row lR+4: InjSide(L)
+        ws.Cells(lProcRow + 4,12).Value = vData(idx, COL_WCBSIDE)     ' Col L
 
-        ' Obstetrics
-        ws.Cells(lProcRow, 11).Value = vData(idx, COL_OBS)            ' Col K
-
-        ' Acute Pain
-        ws.Cells(lProcRow + 1, 7).Value = vData(idx, COL_ACUTEPAIN)   ' Next row, Col G
-
-        ' Chronic Pain
-        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_CHRONPAIN)   ' Next row, Col H
-
-        ' Miscellaneous
-        ws.Cells(lProcRow + 1, 9).Value = vData(idx, COL_MISC)        ' Next row, Col I
-
-        ' Procedure times
-        ws.Cells(lProcRow + 2, 3).Value = vData(idx, COL_STARTTIME)   ' Start time
-        ws.Cells(lProcRow + 2, 5).Value = vData(idx, COL_FINTIME)     ' Finish time
-
-        ' WCB fields
-        ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)      ' WCB #
-        ws.Cells(lProcRow + 2, 9).Value = vData(idx, COL_WCBDATE)     ' Date of Injury
-        ws.Cells(lProcRow + 2, 10).Value = vData(idx, COL_WCBSIDE)    ' Injury Side
-        ws.Cells(lProcRow + 2, 11).Value = vData(idx, COL_WCBINJ)     ' Injury Type
+        ' Row lR+5: InjType(L)
+        ws.Cells(lProcRow + 5,12).Value = vData(idx, COL_WCBINJ)      ' Col L
     Next idx
 End Sub
 
@@ -507,7 +510,9 @@ End Sub
 '------------------------------------------------------------------------------
 Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String, _
                                 ByVal sMSP As String, ByVal dtDate As Date, _
-                                ByVal lStartIdx As Long)
+                                ByVal lStartIdx As Long, _
+                                Optional ByVal sShiftStart As String = "", _
+                                Optional ByVal sShiftFin As String = "")
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets("ORReportingForm")
 
@@ -521,6 +526,8 @@ Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String
     ws.Range(FORM_SHIFTTYPE_CELL).Value = vData(1, COL_SHIFTTYPE)
     ws.Range(FORM_ONCALL_CELL).Value = IIf(vData(1, COL_ONCALL) = True Or _
         LCase(CStr(vData(1, COL_ONCALL) & "")) = "yes", "Yes", "No")
+    If Len(sShiftStart) > 0 Then ws.Range(FORM_SHIFTSTART_CELL).Value = sShiftStart
+    If Len(sShiftFin) > 0 Then ws.Range(FORM_SHIFTFIN_CELL).Value = sShiftFin
 
     ' Populate procedure blocks starting from lStartIdx
     Dim procRows() As String
@@ -536,23 +543,33 @@ Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String
         Dim lProcRow As Long
         lProcRow = CLng(procRows(blockIdx))
 
-        ws.Cells(lProcRow, 3).Value = vData(idx, COL_PROCCODE)
-        ws.Cells(lProcRow, 1).Value = vData(idx, COL_CONSULT)
-        ws.Cells(lProcRow, 5).Value = vData(idx, COL_MAXIC)
-        ws.Cells(lProcRow, 7).Value = vData(idx, COL_MOD1)
-        ws.Cells(lProcRow, 8).Value = vData(idx, COL_MOD2)
-        ws.Cells(lProcRow, 9).Value = vData(idx, COL_MOD3)
-        ws.Cells(lProcRow, 10).Value = vData(idx, COL_RESUS)
-        ws.Cells(lProcRow, 11).Value = vData(idx, COL_OBS)
+        ' Row lR+0: Consult(A), Mod1(G), Mod2(H), Mod3(I), Resus(J), Obs(K)
+        ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)
+        ws.Cells(lProcRow,     7).Value = vData(idx, COL_MOD1)
+        ws.Cells(lProcRow,     8).Value = vData(idx, COL_MOD2)
+        ws.Cells(lProcRow,     9).Value = vData(idx, COL_MOD3)
+        ws.Cells(lProcRow,    10).Value = vData(idx, COL_RESUS)
+        ws.Cells(lProcRow,    11).Value = vData(idx, COL_OBS)
+
+        ' Row lR+1: AcutePain(G), ProcCode(H), Misc(I), ICLevel(L)
         ws.Cells(lProcRow + 1, 7).Value = vData(idx, COL_ACUTEPAIN)
-        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_CHRONPAIN)
+        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_PROCCODE)
         ws.Cells(lProcRow + 1, 9).Value = vData(idx, COL_MISC)
-        ws.Cells(lProcRow + 2, 3).Value = vData(idx, COL_STARTTIME)
-        ws.Cells(lProcRow + 2, 5).Value = vData(idx, COL_FINTIME)
+        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_MAXIC)
+
+        ' Row lR+2: WCB#(G), StartTime(H), FinishTime(L)
         ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)
-        ws.Cells(lProcRow + 2, 9).Value = vData(idx, COL_WCBDATE)
-        ws.Cells(lProcRow + 2, 10).Value = vData(idx, COL_WCBSIDE)
-        ws.Cells(lProcRow + 2, 11).Value = vData(idx, COL_WCBINJ)
+        ws.Cells(lProcRow + 2, 8).Value = vData(idx, COL_STARTTIME)
+        ws.Cells(lProcRow + 2,12).Value = vData(idx, COL_FINTIME)
+
+        ' Row lR+3: DateOfInj(L)
+        ws.Cells(lProcRow + 3,12).Value = vData(idx, COL_WCBDATE)
+
+        ' Row lR+4: InjSide(L)
+        ws.Cells(lProcRow + 4,12).Value = vData(idx, COL_WCBSIDE)
+
+        ' Row lR+5: InjType(L)
+        ws.Cells(lProcRow + 5,12).Value = vData(idx, COL_WCBINJ)
 
         blockIdx = blockIdx + 1
     Next idx
@@ -572,8 +589,10 @@ Public Sub ClearORForm(ByVal ws As Worksheet)
     ws.Range(FORM_SHIFTTYPE_CELL).Value = ""
     ws.Range(FORM_ONCALL_CELL).Value = ""
     ws.Range(FORM_DATE_CELL).Value = ""
+    ws.Range(FORM_SHIFTSTART_CELL).Value = ""
+    ws.Range(FORM_SHIFTFIN_CELL).Value = ""
 
-    ' Clear all procedure blocks
+    ' Clear all procedure blocks (6 rows each: lR+0 through lR+5)
     Dim procRows() As String
     procRows = Split(PROC_START_ROWS, ",")
 
@@ -582,8 +601,8 @@ Public Sub ClearORForm(ByVal ws As Worksheet)
         Dim lRow As Long
         lRow = CLng(procRows(i))
 
-        ' Clear 3 rows per block, columns A through L
-        ws.Range(ws.Cells(lRow, 1), ws.Cells(lRow + 2, 12)).ClearContents
+        ' Clear 6 rows per block, columns A through L
+        ws.Range(ws.Cells(lRow, 1), ws.Cells(lRow + 5, 12)).ClearContents
     Next i
 
     On Error GoTo 0
@@ -600,13 +619,15 @@ Public Sub LabelORFormCells()
     Set ws = ThisWorkbook.Sheets("ORReportingForm")
 
     ' Header fields
-    ws.Range(FORM_NAME_CELL).Value      = "[Anesthesiologist]"
-    ws.Range(FORM_MSP_CELL).Value       = "[MSP#]"
-    ws.Range(FORM_SITE_CELL).Value      = "[Site]"
-    ws.Range(FORM_SHIFT_CELL).Value     = "[ShiftName]"
-    ws.Range(FORM_SHIFTTYPE_CELL).Value = "[ShiftType]"
-    ws.Range(FORM_ONCALL_CELL).Value    = "[OnCall]"
-    ws.Range(FORM_DATE_CELL).Value      = "[DateOfService]"
+    ws.Range(FORM_NAME_CELL).Value        = "[Anesthesiologist]"
+    ws.Range(FORM_MSP_CELL).Value         = "[MSP#]"
+    ws.Range(FORM_SITE_CELL).Value        = "[Site]"
+    ws.Range(FORM_SHIFT_CELL).Value       = "[ShiftName]"
+    ws.Range(FORM_SHIFTTYPE_CELL).Value   = "[ShiftType]"
+    ws.Range(FORM_ONCALL_CELL).Value      = "[OnCall]"
+    ws.Range(FORM_DATE_CELL).Value        = "[DateOfService]"
+    ws.Range(FORM_SHIFTSTART_CELL).Value  = "[ShftSrtTime]"
+    ws.Range(FORM_SHIFTFIN_CELL).Value    = "[ShftFinTime]"
 
     ' Procedure block 1 only
     Dim procRows() As String
@@ -614,23 +635,28 @@ Public Sub LabelORFormCells()
     Dim lR As Long
     lR = CLng(procRows(0))
 
+    ' Row lR+0
     ws.Cells(lR,     1).Value = "[Consult]"
-    ws.Cells(lR,     3).Value = "[ProcCode]"
-    ws.Cells(lR,     5).Value = "[ICLevel]"
     ws.Cells(lR,     7).Value = "[Mod1]"
     ws.Cells(lR,     8).Value = "[Mod2]"
     ws.Cells(lR,     9).Value = "[Mod3]"
     ws.Cells(lR,    10).Value = "[Resus]"
     ws.Cells(lR,    11).Value = "[Obs]"
+    ' Row lR+1
     ws.Cells(lR + 1, 7).Value = "[AcutePain]"
-    ws.Cells(lR + 1, 8).Value = "[ChronPain]"
+    ws.Cells(lR + 1, 8).Value = "[ProcCode]"
     ws.Cells(lR + 1, 9).Value = "[Misc]"
-    ws.Cells(lR + 2, 3).Value = "[StartTime]"
-    ws.Cells(lR + 2, 5).Value = "[FinishTime]"
+    ws.Cells(lR + 1,12).Value = "[ICLevel]"
+    ' Row lR+2
     ws.Cells(lR + 2, 7).Value = "[WCB#]"
-    ws.Cells(lR + 2, 9).Value = "[DateOfInj]"
-    ws.Cells(lR + 2,10).Value = "[InjSide]"
-    ws.Cells(lR + 2,11).Value = "[InjType]"
+    ws.Cells(lR + 2, 8).Value = "[StartTime]"
+    ws.Cells(lR + 2,12).Value = "[FinishTime]"
+    ' Row lR+3
+    ws.Cells(lR + 3,12).Value = "[DateOfInj]"
+    ' Row lR+4
+    ws.Cells(lR + 4,12).Value = "[InjSide]"
+    ' Row lR+5
+    ws.Cells(lR + 5,12).Value = "[InjType]"
 
     ws.Activate
     MsgBox "Labels written to ORReportingForm." & vbCrLf & _
