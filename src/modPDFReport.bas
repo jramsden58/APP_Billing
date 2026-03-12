@@ -13,7 +13,7 @@ Option Explicit
 Private Const FORM_NAME_CELL As String = "A4"        ' Anesthesiologist name
 Private Const FORM_MSP_CELL As String = "L4"         ' MSP Billing #
 Private Const FORM_SITE_CELL As String = "H5"         ' Site (RCH / ERH)
-Private Const FORM_SHIFT_CELL As String = "H6"        ' Shift Name
+Private Const FORM_SHIFT_CELL As String = "G6"        ' Shift Name
 Private Const FORM_SHIFTTYPE_CELL As String = "H7"    ' Shift Type
 Private Const FORM_ONCALL_CELL As String = "L7"       ' On Call
 Private Const FORM_DATE_CELL As String = "C8"         ' Date of Service
@@ -23,13 +23,12 @@ Private Const FORM_SHIFTFIN_CELL As String = "L8"     ' Shift Finish Time
 ' Procedure block starting rows (6 blocks, each block spans rows lR to lR+5)
 Private Const PROC_START_ROWS As String = "10,17,24,31,38,45"
 ' Within each block, relative row offsets used in PopulateORForm:
-'   lR+0: Consult(A)
-'   lR+1: ProcCode(H), ICLevel(L)
-'   lR+2: WCB#(G), StartTime(H), FinishTime(L)
+'   lR+0: Consult(A), ProcCode(L), ICLevel(L)
+'   lR+1: StartTime(H), FinishTime(L)
+'   lR+2: WCB#(G)
 '   lR+3: DateOfInj(L)
 '   lR+4: InjSide(L)
 '   lR+5: InjType(L)
-'  (* ProcCode and ChronPain share col H row lR+1 per actual form layout)
 
 '------------------------------------------------------------------------------
 ' GenerateDailyPDF - Main entry point for PDF report generation
@@ -475,17 +474,17 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
         Dim lProcRow As Long
         lProcRow = CLng(procRows(idx - 1))
 
-        ' Row lR+0: Consult(A)
+        ' Row lR+0: Consult(A), ProcCode(L), ICLevel(L)
         ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)      ' Col A
+        ws.Cells(lProcRow,    12).Value = vData(idx, COL_PROCCODE)     ' Col L
+        ws.Cells(lProcRow,    12).Value = vData(idx, COL_MAXIC)        ' Col L
 
-        ' Row lR+1: ProcCode(H), ICLevel(L)
-        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_PROCCODE)    ' Col H
-        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_MAXIC)       ' Col L
+        ' Row lR+1: StartTime(H), FinishTime(L)
+        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_STARTTIME)   ' Col H
+        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_FINTIME)     ' Col L
 
-        ' Row lR+2: WCB#(G), StartTime(H), FinishTime(L)
+        ' Row lR+2: WCB#(G)
         ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)      ' Col G
-        ws.Cells(lProcRow + 2, 8).Value = vData(idx, COL_STARTTIME)   ' Col H
-        ws.Cells(lProcRow + 2,12).Value = vData(idx, COL_FINTIME)     ' Col L
 
         ' Row lR+3: DateOfInj(L)
         ws.Cells(lProcRow + 3,12).Value = vData(idx, COL_WCBDATE)     ' Col L
@@ -536,17 +535,17 @@ Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String
         Dim lProcRow As Long
         lProcRow = CLng(procRows(blockIdx))
 
-        ' Row lR+0: Consult(A)
+        ' Row lR+0: Consult(A), ProcCode(L), ICLevel(L)
         ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)
+        ws.Cells(lProcRow,    12).Value = vData(idx, COL_PROCCODE)
+        ws.Cells(lProcRow,    12).Value = vData(idx, COL_MAXIC)
 
-        ' Row lR+1: ProcCode(H), ICLevel(L)
-        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_PROCCODE)
-        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_MAXIC)
+        ' Row lR+1: StartTime(H), FinishTime(L)
+        ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_STARTTIME)
+        ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_FINTIME)
 
-        ' Row lR+2: WCB#(G), StartTime(H), FinishTime(L)
+        ' Row lR+2: WCB#(G)
         ws.Cells(lProcRow + 2, 7).Value = vData(idx, COL_WCBNUM)
-        ws.Cells(lProcRow + 2, 8).Value = vData(idx, COL_STARTTIME)
-        ws.Cells(lProcRow + 2,12).Value = vData(idx, COL_FINTIME)
 
         ' Row lR+3: DateOfInj(L)
         ws.Cells(lProcRow + 3,12).Value = vData(idx, COL_WCBDATE)
@@ -623,13 +622,12 @@ Public Sub LabelORFormCells()
 
     ' Row lR+0
     ws.Cells(lR,     1).Value = "[Consult]"
+    ws.Cells(lR,    12).Value = "[ProcCode/ICLevel]"
     ' Row lR+1
-    ws.Cells(lR + 1, 8).Value = "[ProcCode]"
-    ws.Cells(lR + 1,12).Value = "[ICLevel]"
+    ws.Cells(lR + 1, 8).Value = "[StartTime]"
+    ws.Cells(lR + 1,12).Value = "[FinishTime]"
     ' Row lR+2
     ws.Cells(lR + 2, 7).Value = "[WCB#]"
-    ws.Cells(lR + 2, 8).Value = "[StartTime]"
-    ws.Cells(lR + 2,12).Value = "[FinishTime]"
     ' Row lR+3
     ws.Cells(lR + 3,12).Value = "[DateOfInj]"
     ' Row lR+4
