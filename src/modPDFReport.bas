@@ -23,8 +23,8 @@ Private Const FORM_SHIFTFIN_CELL As String = "L8"     ' Shift Finish Time
 ' Procedure block starting rows (6 blocks, each block spans rows lR to lR+5)
 Private Const PROC_START_ROWS As String = "10,17,24,31,38,45"
 ' Within each block, relative row offsets used in PopulateORForm:
-'   lR+0: Consult(A), Mod1(G), Mod2(H), Mod3(I), Resus(J), Obs(K)
-'   lR+1: AcutePain(G), ProcCode(H), ChronPain(H*), Misc(I), ICLevel(L)
+'   lR+0: Consult(A)
+'   lR+1: ProcCode(H), ICLevel(L)
 '   lR+2: WCB#(G), StartTime(H), FinishTime(L)
 '   lR+3: DateOfInj(L)
 '   lR+4: InjSide(L)
@@ -475,18 +475,11 @@ Private Sub PopulateORForm(ByVal vData As Variant, ByVal sUserName As String, _
         Dim lProcRow As Long
         lProcRow = CLng(procRows(idx - 1))
 
-        ' Row lR+0: Consult(A), Mod1(G), Mod2(H), Mod3(I), Resus(J), Obs(K)
+        ' Row lR+0: Consult(A)
         ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)      ' Col A
-        ws.Cells(lProcRow,     7).Value = vData(idx, COL_MOD1)         ' Col G
-        ws.Cells(lProcRow,     8).Value = vData(idx, COL_MOD2)         ' Col H
-        ws.Cells(lProcRow,     9).Value = vData(idx, COL_MOD3)         ' Col I
-        ws.Cells(lProcRow,    10).Value = vData(idx, COL_RESUS)        ' Col J
-        ws.Cells(lProcRow,    11).Value = vData(idx, COL_OBS)          ' Col K
 
-        ' Row lR+1: AcutePain(G), ProcCode(H), ChronPain(H), Misc(I), ICLevel(L)
-        ws.Cells(lProcRow + 1, 7).Value = vData(idx, COL_ACUTEPAIN)   ' Col G
+        ' Row lR+1: ProcCode(H), ICLevel(L)
         ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_PROCCODE)    ' Col H
-        ws.Cells(lProcRow + 1, 9).Value = vData(idx, COL_MISC)        ' Col I
         ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_MAXIC)       ' Col L
 
         ' Row lR+2: WCB#(G), StartTime(H), FinishTime(L)
@@ -543,18 +536,11 @@ Private Sub PopulateORFormPage(ByVal vData As Variant, ByVal sUserName As String
         Dim lProcRow As Long
         lProcRow = CLng(procRows(blockIdx))
 
-        ' Row lR+0: Consult(A), Mod1(G), Mod2(H), Mod3(I), Resus(J), Obs(K)
+        ' Row lR+0: Consult(A)
         ws.Cells(lProcRow,     1).Value = vData(idx, COL_CONSULT)
-        ws.Cells(lProcRow,     7).Value = vData(idx, COL_MOD1)
-        ws.Cells(lProcRow,     8).Value = vData(idx, COL_MOD2)
-        ws.Cells(lProcRow,     9).Value = vData(idx, COL_MOD3)
-        ws.Cells(lProcRow,    10).Value = vData(idx, COL_RESUS)
-        ws.Cells(lProcRow,    11).Value = vData(idx, COL_OBS)
 
-        ' Row lR+1: AcutePain(G), ProcCode(H), Misc(I), ICLevel(L)
-        ws.Cells(lProcRow + 1, 7).Value = vData(idx, COL_ACUTEPAIN)
+        ' Row lR+1: ProcCode(H), ICLevel(L)
         ws.Cells(lProcRow + 1, 8).Value = vData(idx, COL_PROCCODE)
-        ws.Cells(lProcRow + 1, 9).Value = vData(idx, COL_MISC)
         ws.Cells(lProcRow + 1,12).Value = vData(idx, COL_MAXIC)
 
         ' Row lR+2: WCB#(G), StartTime(H), FinishTime(L)
@@ -637,15 +623,8 @@ Public Sub LabelORFormCells()
 
     ' Row lR+0
     ws.Cells(lR,     1).Value = "[Consult]"
-    ws.Cells(lR,     7).Value = "[Mod1]"
-    ws.Cells(lR,     8).Value = "[Mod2]"
-    ws.Cells(lR,     9).Value = "[Mod3]"
-    ws.Cells(lR,    10).Value = "[Resus]"
-    ws.Cells(lR,    11).Value = "[Obs]"
     ' Row lR+1
-    ws.Cells(lR + 1, 7).Value = "[AcutePain]"
     ws.Cells(lR + 1, 8).Value = "[ProcCode]"
-    ws.Cells(lR + 1, 9).Value = "[Misc]"
     ws.Cells(lR + 1,12).Value = "[ICLevel]"
     ' Row lR+2
     ws.Cells(lR + 2, 7).Value = "[WCB#]"
@@ -663,6 +642,22 @@ Public Sub LabelORFormCells()
            "Compare each [label] to the printed form field it should fill." & vbCrLf & _
            "Report back which cells need to move and the constants will be updated.", _
            vbInformation, "Layout Diagnostic"
+End Sub
+
+'------------------------------------------------------------------------------
+' ClearORFormStaticCells - One-time cleanup: clears static content from cells
+' that previously held deprecated field labels (Resus, Obs, Misc, AcutePain,
+' Mod1/2/3) on the physical ORReportingForm sheet.  Run this macro once after
+' importing the updated modPDFReport module.
+'------------------------------------------------------------------------------
+Public Sub ClearORFormStaticCells()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("ORReportingForm")
+    Dim cell As Variant
+    For Each cell In Array("C3","C5","C6","L3","L6","A10","C10","C12","E12","F12","I12","J12","K12")
+        ws.Range(CStr(cell)).ClearContents
+    Next cell
+    MsgBox "Static cells cleared from ORReportingForm.", vbInformation
 End Sub
 
 '------------------------------------------------------------------------------
